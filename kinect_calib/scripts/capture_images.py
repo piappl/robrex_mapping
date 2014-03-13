@@ -25,7 +25,7 @@ from sensor_msgs.msg import Image
 
 bridge = CvBridge() 
 
-def callback(data):
+def callbackrgb(data):
 	global bridge 
 	print 'received image of type: "%s"' % data.header
 	try:
@@ -36,7 +36,21 @@ def callback(data):
 	cv2.imshow("Image window", cv_image)
 	cv2.waitKey(3)
 
-    
+def callbackir(data):
+	global bridge 
+	print 'received image of type: "%s"' % data.header
+	# print 'data type: %s' % data.encoding	
+	try:
+		cv_image = bridge.imgmsg_to_cv(data, "mono16")
+	except CvBridgeError, e:
+		print e
+	cv_image = np.array(cv_image, dtype=np.uint16)
+	#print cv_image
+	cv_image8 = cv2.convertScaleAbs(cv_image, alpha=0.5)
+	#cv_image8 = cv2.medianBlur(cv_image8,3) 
+	cv2.imshow("Image window", cv_image8)
+	cv2.waitKey(3)
+
 def listener():
 
 # in ROS, nodes are unique named. If two nodes with the same
@@ -45,7 +59,9 @@ def listener():
 # name for our 'talker' node so that multiple talkers can
 # run simultaenously.
 	rospy.init_node('listener', anonymous=True)
-	rospy.Subscriber("/camera/rgb/image_color", Image, callback,  queue_size = 1)
+	#rospy.Subscriber("/camera/rgb/image_color", Image, callbackrgb,  queue_size = 1)
+	rospy.Subscriber("/camera/ir/image_raw", Image, callbackir,  queue_size = 1)
+
     #rospy.Subscriber("chatter", String, callback)
     # spin() simply keeps python from exiting until this node is stopped
 	cv2.namedWindow("Image window", 1)

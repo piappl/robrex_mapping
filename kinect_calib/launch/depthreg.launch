@@ -1,0 +1,19 @@
+<launch>
+  <node pkg="nodelet" type="nodelet" name="DepthRegister"
+        args="standalone depth_image_proc/register">
+	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
+	  <remap from="depth/camera_info" to="camera/depth/camera_info"/>
+	  <remap from="depth/image_rect" to="camera/depth/image_rect"/>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="PointCloudXYZRGB"
+        args="standalone depth_image_proc/point_cloud_xyzrgb" output="screen">
+	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
+	  <remap from="rgb/image_rect_color" to="camera/rgb/image_rect_color"/>
+	  <param name="queue_size" value="30" type="int" />
+  </node>
+  <node pkg="nodelet" type="nodelet" name="PointCloudXYZ"
+        args="standalone depth_image_proc/point_cloud_xyz">
+	  <remap from="camera_info" to="camera/depth/camera_info"/>
+	  <remap from="image_rect" to="camera/depth/image_rect"/>
+  </node>
+</launch>

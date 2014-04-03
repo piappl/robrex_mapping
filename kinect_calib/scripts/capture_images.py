@@ -120,7 +120,7 @@ def listener1():
 			cv2.imwrite(filenameir, cv_image_ir)
 
 			filenamergb = 'camerargb-' + str(messageir.header.stamp.secs) + '-' + str(messageir.header.stamp.nsecs) + '.png'	
-			print 'Saving ' + filenameir
+			print 'Saving ' + filenamergb
 			cv2.imwrite(filenamergb, cv_image_rgb)
 		
 		cv2.waitKey(1000)

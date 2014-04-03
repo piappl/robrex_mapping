@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+PKG = 'kinect_calib'
+import roslib; roslib.load_manifest(PKG)
+import rospy
 import sys
 import argparse
 
@@ -9,9 +12,11 @@ parser = argparse.ArgumentParser(description='Splits stere calibration ost.txt f
 parser.add_argument('filein', help='input file')
 parser.add_argument('fileout1', help='first output file')
 parser.add_argument('fileout2', help='second output file')
-args = parser.parse_args() 
+print rospy.myargv()
+print sys.argv
+args = parser.parse_args(sys.argv[1:]) 
 
-if len(sys.argv) != 4:
+if len(rospy.myargv()) != 4:
 	print 'usage: kinect_calib filein fileout1 fileout2'
 	exit
 

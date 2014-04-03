@@ -29,7 +29,7 @@ def talker():
 	pubir = rospy.Publisher('camera/ir_virtual', Image)
 	pubrgb = rospy.Publisher('camera/rgb_virtual', Image)
 	rospy.init_node('talker', anonymous=True)
-	r = rospy.Rate(1) # 1hz
+	r = rospy.Rate(2) # 2hz
 	while not rospy.is_shutdown():
 		filenames = glob.glob('camerair*')
 		filenames.sort() #Some files have shorter usec part so the sorting is not perfect 

@@ -1,0 +1,61 @@
+Kalibracja:
+
+1. Wydrukować i usztywnić wzorzec kalibracyjny. Rozproszyć światło oświetlacza IR kinecta w celu pewniejszego wykrywania narożników wzorca kalibracyjnego. Pobrać wzorzec kalibracyjny np. http://wiki.ros.org/camera_calibration/Tutorials/StereoCalibration?action=AttachFile&do=view&target=check-108.pdf
+2. Stworzyć katalog, w którym przechowywane będą dane kalibracyjne 
+mkdir ~/kinect_calib_data
+cd kinect_calib_data
+3. Przygotować stanowisko kalibracyjne poprzez ustabilizowanie kinecta. Obrazy z kamery IR i RGB nie mogą być pobierane równocześnie, dlatego podczas pobierania pojedynczej pary obrazów kalibracyjnych kinect musi znajdować się nieruchomo przez 2-3 sekundy. 
+4. Uruchomić ROS Core
+roscore
+5. Urchomic OpenNI
+roslaunch openni_launch openni.launch
+6. Zgromadzić sekwencję obrazów kalibracyjnych
+rosrun kinect_calib capture_images.py
+Pobrane obrazy IR i RGB są wyświetlane, wraz z wykrytą szachownicą. W przypadku prawidłowego wykrycia obu szachownic pojawia sie informacja o zapisaniu obrazów obu kamer. Do poprawnej kalibracji wymagane jest kilkadziesiąt par obrazów.
+7. Uruchomić publikowanie wykonanych zdjęć przez wirtualne kamery
+rosrun kinect_calib publish_images.py
+8. Pomierzyć wielkość kwadratu wydrukowanego wzorca i użyć modułu ROS (opartego o OpenCV) do kalibracji stereopary kamer
+rosrun camera_calibration cameracalibrator.py --size 8x6 --square 0.025 -k 3 left:=/camera/rgb_virtual right:=/camera/ir_virtual
+wybrać opcje CALIBRATE oraz SAVE 
+9. Rozpakować zapisane dane dot. kalibracji i rektyfikacji stereopary kamer 
+tar -xvvzf /tmp/calibrationdata.tar.gz
+istotne dane kalibracyjne znajdują się w pliku ost.txt
+10. Podzielić plik kalibracji stereowizyjnej na dwa oddzielne pliki dla dwóch kamer 
+rosrun kinect_calib split_files.py ost.txt ostl.txt ostr.txt
+11. Zamienić pliki w formacie OST na pliki w formacie YAML 
+mv ostl.txt ostl.ini
+mv ostr.txt ostr.ini
+rosrun camera_calibration_parsers convert ostl.ini ostl.yml
+rosrun camera_calibration_parsers convert ostr.ini ostr.yml
+12. Z danych rektyfikacji i kalibracji stereopary kamer odtworzyć oryginalne parametry kamer i ich wzajemnej orientacji 
+rosrun kinect_calib prepare_calib_config.py ostl.yml ostr.yml rgb.yml depth.yml trans.yml
+Publikowanie i wyświetlanie skalibrowanych chmur:
+1. Uruchomić roscore
+roscore
+2. Dodać ścieżki do plików kalibracyjnych obu kamer w pliku kinect_calib/launch/openni.launch 
+
+roscd kinect_calib/launch
+vim openni.launch
+
+i ustawić arguments "rgb_camera_info_url" na  "file://$(env HOME)/kinect_calib_data/rgb.yml"
+oraz "depth_camera_infor_url" na "file://$(env HOME)/kinect_calib_data/depth.yml"
+
+3.Uruchomić OpenNI (przez launch file z pakietu kinect_calib)
+
+roslaunch kinect_calib openni.launch
+
+4. Uruchomić węzły modułu depth_image_proc (używając launch file pakiektu kinect_calib)
+
+roslaunch kinect_calib depthreg.launch
+
+5. Uruchomić skrypt publikujący obliczoną transformację między kamerą IR i RGB
+
+rosrun kinect_calib publish_transform.py camera_depth_optical_frame camera_rgb_optical_frame ~/kinect_calib_data/trans.yml
+
+6. Skalibrowana chmura punktów jest dostępna w topicu: /depth_registered/points
+
+
+
+
+
+

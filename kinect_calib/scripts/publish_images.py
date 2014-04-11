@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#Author: Artur Wilkowski(PIAP)
+
 PKG = 'kinect_calib' # this package name
 import roslib; roslib.load_manifest(PKG)
 

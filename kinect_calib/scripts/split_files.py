@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+#Author: Artur Wilkowski (PIAP)
+
 PKG = 'kinect_calib'
 import roslib; roslib.load_manifest(PKG)
 import rospy
@@ -8,12 +10,12 @@ import argparse
 
 PKG = 'kinect_calib'
 
-parser = argparse.ArgumentParser(description='Splits stere calibration ost.txt file into two ini files separately for each camera')
+parser = argparse.ArgumentParser(description='Splits stereo calibration ost.txt file into two ini files separately for each camera')
 parser.add_argument('filein', help='input file')
 parser.add_argument('fileout1', help='first output file')
 parser.add_argument('fileout2', help='second output file')
-print rospy.myargv()
-print sys.argv
+#print rospy.myargv()
+#print sys.argv
 args = parser.parse_args(sys.argv[1:]) 
 
 if len(rospy.myargv()) != 4:

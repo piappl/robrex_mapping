@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+#Author: Artur Wilkowski (PIAP)
+
 PKG = 'kinect_calib'
 import roslib; roslib.load_manifest(PKG)
 import yaml
@@ -17,6 +20,7 @@ class UnsortableOrderedDict(OrderedDict):
 #End
 
 # Parser function by Stephan (http://answers.ros.org/question/33929/camera-calibration-parser-in-python/)
+# Unused now
 def parse_yaml(filename):
 	stream = file(filename, 'r')
 	calib_data = yaml.load(stream)
@@ -118,8 +122,8 @@ if __name__ == "__main__":
 		T = P2[:,3] / P2[0,0]
 		T = R2.transpose().dot(T)
 
-		#Point coordintates in the 1-st camera reference frame are related to point coordinates in the 2-nd camera r.f. by
-		#P_1 = R^T * P_2 + T
+		#Point coordintates in the 2-nd camera reference frame are related to point coordinates in the 1-st camera r.f. by
+		#P_2 = R^T * P_1 + T
 
 		#"De-rectify" calibration parameters
 		calib_data1 = derectify(calib_data1) 
@@ -138,10 +142,10 @@ if __name__ == "__main__":
 		stream = file(args.outtransformfile, 'w')
 		transformdict = UnsortableOrderedDict() 
 	
-		transformdict["rotationt"] = UnsortableOrderedDict()  
-		transformdict["rotationt"]["rows"] = 3
-		transformdict["rotationt"]["cols"] = 3
-		transformdict["rotationt"]["data"] = R.reshape(9).tolist()
+		transformdict["rotation"] = UnsortableOrderedDict()  
+		transformdict["rotation"]["rows"] = 3
+		transformdict["rotation"]["cols"] = 3
+		transformdict["rotation"]["data"] = R.reshape(9).tolist()
 		
 		transformdict["translation"] = UnsortableOrderedDict()  
 		transformdict["translation"]["rows"] = 1

@@ -21,4 +21,11 @@
   <include file="$(find kinect_calib)/launch/include/depth_proc.launch">       
      <arg name="manager_name" value="$(arg manager_name)" />
   </include>
+
+  <!-- Publish transformation between rgb and depth -->
+  <node name="publish_transform" pkg="kinect_calib" type="publish_transform.py" output="screen">       
+     <param name="depth_optical_frame_name" value="camera_depth_optical_frame" />
+     <param name="rgb_optical_frame_name" value="camera_rgb_optical_frame" />
+     <param name="transform_file" value="$(arg calib_path)/trans.yml" />
+  </node>
 </launch>

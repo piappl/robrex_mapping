@@ -1,19 +1,24 @@
 <launch>
-  <node pkg="nodelet" type="nodelet" name="DepthRegister"
-        args="standalone depth_image_proc/register">
-	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
-	  <remap from="depth/camera_info" to="camera/depth/camera_info"/>
-	  <remap from="depth/image_rect" to="camera/depth/image_rect"/>
-  </node>
-  <node pkg="nodelet" type="nodelet" name="PointCloudXYZRGB"
-        args="standalone depth_image_proc/point_cloud_xyzrgb" output="screen">
-	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
-	  <remap from="rgb/image_rect_color" to="camera/rgb/image_rect_color"/>
-	  <param name="queue_size" value="30" type="int" />
-  </node>
-  <node pkg="nodelet" type="nodelet" name="PointCloudXYZ"
-        args="standalone depth_image_proc/point_cloud_xyz">
-	  <remap from="camera_info" to="camera/depth/camera_info"/>
-	  <remap from="image_rect" to="camera/depth/image_rect"/>
-  </node>
+  <!-- Parameters -->
+  <arg name="calib_path" default="$(find kinect_calib)/../../data/kinect_calib/calibration"/> 
+  <arg name="manager_name" default="rgbd_manager"/>
+
+  <!-- Nodelet manager -->
+  <node pkg="nodelet" type="nodelet" name="$(arg manager_name)" args="manager" output="screen"/>
+
+  <!-- Driver nodelet -->      
+  <include file="$(find kinect_calib)/launch/include/device.launch">       
+     <arg name="manager_name" value="$(arg manager_name)" />
+     <arg name="calib_path"   value="$(arg calib_path)" />
+  </include>
+
+  <!-- Image processing nodelets -->      
+  <include file="$(find kinect_calib)/launch/include/image_proc.launch">       
+     <arg name="manager_name" value="$(arg manager_name)" />
+  </include>
+
+  <!-- Depth registration nodelets -->
+  <include file="$(find kinect_calib)/launch/include/depth_proc.launch">       
+     <arg name="manager_name" value="$(arg manager_name)" />
+  </include>
 </launch>

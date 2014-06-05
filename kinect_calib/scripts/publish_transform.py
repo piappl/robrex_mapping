@@ -47,7 +47,7 @@ if __name__ == '__main__':
 	
 	#Initialize transfrom broadcaster
 	br = tf.TransformBroadcaster()
-	r = rospy.Rate(2)
+	r = rospy.Rate(30)
 
 	#Broadcast transforms
 	while not rospy.is_shutdown():

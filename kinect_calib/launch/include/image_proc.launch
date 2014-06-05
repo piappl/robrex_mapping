@@ -1,0 +1,25 @@
+<launch>
+  <arg name="manager_name" />      
+
+  <!-- Image processing nodelets -->      
+  <node pkg="nodelet" type="nodelet" name="RGBImageDebayer"
+        args="load image_proc/debayer $(arg manager_name)" output="screen">
+	  <remap from="image_raw" to="camera/rgb/image_raw"/>
+	  <remap from="image_mono" to="camera/rgb/image_mono"/>
+	  <remap from="image_color" to="camera/rgb/image_color"/>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="RGBImageRectify"
+        args="load image_proc/rectify $(arg manager_name)">
+	  <remap from="image_mono" to="camera/rgb/image_color"/>
+	  <remap from="camera_info" to="camera/rgb/camera_info"/>
+	  <remap from="image_rect" to="camera/rgb/image_rect_color"/>
+  </node>
+  <node pkg="nodelet" type="nodelet" name="DepthImageRectify"
+        args="load image_proc/rectify $(arg manager_name)">
+	  <remap from="image_mono" to="camera/depth/image_raw"/>
+	  <remap from="camera_info" to="camera/depth/camera_info"/>
+	  <remap from="image_rect" to="camera/depth/image_rect"/>
+          <!-- Use nearest neighbor (0) interpolation so we don't streak across depth boundaries -->
+	  <param name="interpolation" value="0" />
+  </node>
+</launch>

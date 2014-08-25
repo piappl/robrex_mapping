@@ -21,8 +21,8 @@
     <param name="device_id"             value="#1" />
     <param name="rgb_camera_info_url"   value="$(arg rgb_camera_info_url)" />
     <param name="depth_camera_info_url" value="$(arg depth_camera_info_url)" />
-    <param name="rgb_frame_id"          value="/camera_rgb_optical_frame" />
-    <param name="depth_frame_id"        value="/camera_depth_optical_frame" />
+    <param name="rgb_frame_id"          value="camera_rgb_optical_frame" />
+    <param name="depth_frame_id"        value="camera_depth_optical_frame" />
 
     <param name="image_mode"         value="$(arg image_mode)" />
     <param name="depth_mode"         value="$(arg depth_mode)" />

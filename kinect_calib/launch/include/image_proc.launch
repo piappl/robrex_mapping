@@ -18,7 +18,7 @@
         args="load image_proc/rectify $(arg manager_name)">
 	  <remap from="image_mono" to="camera/depth/image_raw"/>
 	  <remap from="camera_info" to="camera/depth/camera_info"/>
-	  <remap from="image_rect" to="camera/depth/image_rect"/>
+	  <remap from="image_rect" to="camera/depth/image_rect_raw"/>
           <!-- Use nearest neighbor (0) interpolation so we don't streak across depth boundaries -->
 	  <param name="interpolation" value="0" />
   </node>

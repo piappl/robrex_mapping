@@ -6,20 +6,20 @@
         args="load depth_image_proc/register $(arg manager_name)" output="screen">
 	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
 	  <remap from="depth/camera_info" to="camera/depth/camera_info"/>
-	  <remap from="depth/image_rect" to="camera/depth/image_rect"/>
+	  <remap from="depth/image_rect" to="camera/depth/image_rect_raw"/>
 	  <remap from="depth_registered/camera_info" to="camera/depth_registered/camera_info"/>
-	  <remap from="depth_registered/image_rect" to="camera/depth_registered/image_rect"/>
+	  <remap from="depth_registered/image_rect" to="camera/depth_registered/image_rect_raw"/>
   </node>
   <node pkg="nodelet" type="nodelet" name="PointCloudXYZRGB"
         args="load depth_image_proc/point_cloud_xyzrgb $(arg manager_name)" output="screen">
 	  <remap from="rgb/camera_info" to="camera/rgb/camera_info"/>
 	  <remap from="rgb/image_rect_color" to="camera/rgb/image_rect_color"/>
-	  <remap from="depth_registered/image_rect" to="camera/depth_registered/image_rect"/>
+	  <remap from="depth_registered/image_rect" to="camera/depth_registered/image_rect_raw"/>
 	  <param name="queue_size" value="5" type="int" />
   </node>
   <node pkg="nodelet" type="nodelet" name="PointCloudXYZ"
         args="load depth_image_proc/point_cloud_xyz $(arg manager_name)" output="screen">
 	  <remap from="camera_info" to="camera/depth/camera_info"/>
-	  <remap from="image_rect" to="camera/depth/image_rect"/>
+	  <remap from="image_rect" to="camera/depth/image_rect_raw"/>
   </node>
 </launch>

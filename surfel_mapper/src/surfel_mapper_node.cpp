@@ -9,10 +9,15 @@
 #include <pcl/common/transforms.h>
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
 
 #define DMAX 0.05f
 #define CLOUD_WIDTH 640
 #define CLOUD_HEIGHT 480
+#define MIN_KINECT_DIST 0.8 
+#define MAX_KINECT_DIST 4.0 
+
 
 struct SensorPose {
 	public:
@@ -105,8 +110,148 @@ void downsampleSceneCloud()
 	sor.filter (*cloudSceneDownsampled);
 }
 
+
+//Modified PCL transformPointCloud function aimed at non-rigid homogenous transformations
+template <typename PointT, typename Scalar> void transformPointCloudNonRigid (const pcl::PointCloud<PointT> &cloud_in, 
+		pcl::PointCloud<PointT> &cloud_out, const Eigen::Matrix<Scalar, 4, 4> &transform)
+{
+	if (&cloud_in != &cloud_out) {
+		// Note: could be replaced by cloud_out = cloud_in
+		cloud_out.header = cloud_in.header;
+		cloud_out.is_dense = cloud_in.is_dense;
+		cloud_out.width = cloud_in.width;
+		cloud_out.height = cloud_in.height;
+		cloud_out.points.reserve (cloud_out.points.size ());
+		cloud_out.points.assign (cloud_in.points.begin (), cloud_in.points.end ());
+		cloud_out.sensor_orientation_ = cloud_in.sensor_orientation_;
+		cloud_out.sensor_origin_ = cloud_in.sensor_origin_;
+	}
+
+	if (cloud_in.is_dense) {
+		// If the dataset is dense, simply transform it!
+		for (size_t i = 0; i < cloud_out.points.size (); ++i) {
+			//cloud_out.points[i].getVector3fMap () = transform * cloud_in.points[i].getVector3fMap ();
+			Eigen::Matrix<Scalar, 3, 1> pt (cloud_in[i].x, cloud_in[i].y, cloud_in[i].z);
+			float w = static_cast<float> (transform (3, 0) * pt.coeffRef (0) + transform (3, 1) * pt.coeffRef (1) + transform (3, 2) * pt.coeffRef (2) + transform (3, 3)) ;
+			cloud_out[i].x = static_cast<float> (transform (0, 0) * pt.coeffRef (0) + transform (0, 1) * pt.coeffRef (1) + transform (0, 2) * pt.coeffRef (2) + transform (0, 3)) / w ;
+			cloud_out[i].y = static_cast<float> (transform (1, 0) * pt.coeffRef (0) + transform (1, 1) * pt.coeffRef (1) + transform (1, 2) * pt.coeffRef (2) + transform (1, 3)) / w ;
+			cloud_out[i].z = static_cast<float> (transform (2, 0) * pt.coeffRef (0) + transform (2, 1) * pt.coeffRef (1) + transform (2, 2) * pt.coeffRef (2) + transform (2, 3)) / w ;
+		}
+	} else {
+		// Dataset might contain NaNs and Infs, so check for them first,
+		// otherwise we get errors during the multiplication (?)
+		for (size_t i = 0; i < cloud_out.points.size (); ++i) {
+			if (!pcl_isfinite (cloud_in.points[i].x) || !pcl_isfinite (cloud_in.points[i].y) || !pcl_isfinite (cloud_in.points[i].z))
+				continue;
+			//cloud_out.points[i].getVector3fMap () = transform * cloud_in.points[i].getVector3fMap ();
+			Eigen::Matrix<Scalar, 3, 1> pt (cloud_in[i].x, cloud_in[i].y, cloud_in[i].z);
+			float w = static_cast<float> (transform (3, 0) * pt.coeffRef (0) + transform (3, 1) * pt.coeffRef (1) + transform (3, 2) * pt.coeffRef (2) + transform (3, 3)) ;
+			cloud_out[i].x = static_cast<float> (transform (0, 0) * pt.coeffRef (0) + transform (0, 1) * pt.coeffRef (1) + transform (0, 2) * pt.coeffRef (2) + transform (0, 3)) / w ;
+			cloud_out[i].y = static_cast<float> (transform (1, 0) * pt.coeffRef (0) + transform (1, 1) * pt.coeffRef (1) + transform (1, 2) * pt.coeffRef (2) + transform (1, 3)) / w ;
+			cloud_out[i].z = static_cast<float> (transform (2, 0) * pt.coeffRef (0) + transform (2, 1) * pt.coeffRef (1) + transform (2, 2) * pt.coeffRef (2) + transform (2, 3)) / w ;
+		}
+	}
+}
+
+
+void testCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
+{
+	double alpha = 518.930578 ; //fx
+	double cx = 323.483756 ;
+	double beta = 517.211658 ; //fy
+	double cy = 260.384697 ;
+
+	double width = 640 ;
+	double height = 480 ;
+
+	double f = MAX_KINECT_DIST ; 
+	double n = MIN_KINECT_DIST ;
+
+	Eigen::Matrix4d viewMatrix ;
+	viewMatrix << cloud->sensor_orientation_.toRotationMatrix().cast<double>(), cloud->sensor_origin_.topRows<3>().cast<double>(), 0.0, 0.0, 0.0, 1.0 ;
+	viewMatrix = viewMatrix.inverse() ;
+	Eigen::Matrix4d projectionMatrix ; 
+	projectionMatrix << 2 * alpha / width, 0.0, 2 * cx / width - 1.0, 0.0,
+				0.0, 2 * beta / height, 2 * cy / height - 1.0, 0.0,
+				0.0, 0.0, (f + n) / (f - n), -2 * f * n / (f - n),
+				0.0, 0.0, 1.0, 0.0 ;
+	std::cout << "View matrix: " << std::endl << viewMatrix << std::endl ;
+	std::cout << "Projection matrix: " << std::endl << projectionMatrix << std::endl ;
+	Eigen::Matrix4d projectionViewMatrix = projectionMatrix * viewMatrix ;
+	
+	//Transform point cloud
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+	transformPointCloudNonRigid<pcl::PointXYZRGB, double>(*cloud, *cloudTemp, projectionViewMatrix) ;
+
+	//Measure cube bounds (all transformed points should be in a cube [-1,1]x[-1,1]x[-1,1]
+	float minx, maxx, miny, maxy, minz, maxz ;
+	minx = miny = minz = 100.0f ;
+	maxx = maxy = maxz = -100.0f ;
+	for (uint32_t i = 0; i < cloudTemp->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
+		for (uint32_t j = 0; j < cloudTemp->width ; j++) {
+			pcl::PointXYZRGB &point = (*cloudTemp)(j, i) ;	
+			if (point.x < minx) minx = point.x ;
+			if (point.y < miny) miny = point.y ;
+			if (point.z < minz) minz = point.z ;
+			if (point.x > maxx) maxx = point.x ;
+			if (point.y > maxy) maxy = point.y ;
+			if (point.z > maxz) maxz = point.z ;
+		}
+	ROS_INFO("x = [%f %f] y = [%f %f] z = [%f %f]", minx, maxx, miny, maxy, minz, maxz) ;
+}
+
+void filterCloudByDistance(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
+{
+	//TODO: this filtering requires cloud transformation and takes 10-20 ms - consider performing this at the time of image acquisition
+	//Transform cloud to the original frame	
+	Eigen::Matrix4f trans ;
+	trans << cloud->sensor_orientation_.toRotationMatrix(), cloud->sensor_origin_.topRows<3>(), 0.0, 0.0, 0.0, 1.0 ;
+	Eigen::Matrix4f transinv = trans.inverse() ;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+	pcl::transformPointCloud(*cloud, *cloudTemp, transinv) ;
+
+	//int pointsUpdated = 0 ;
+	//Manually NaNing points outside effective Kinect scope
+	for (uint32_t i = 0; i < cloudTemp->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
+		for (uint32_t j = 0; j < cloudTemp->width ; j++) {
+			float zscan = (*cloudTemp)(j, i).z ;	
+			if (!std::isnan(zscan) && (zscan > MAX_KINECT_DIST || zscan < MIN_KINECT_DIST)) {
+				pcl::PointXYZRGB &point = (*cloud)(j, i) ;	
+				point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN () ;
+				//pointsUpdated++ ;
+			}
+		}
+
+	//ROS_INFO("Number of points outside Kinect scope removed: [%d]", pointsUpdated) ;
+		
+	//Cannot make out how to specify these filters - let's do it manually...
+	//Mark points that are too close or too far by indices
+	/*pcl::PassThrough<pcl::PointXYZRGB> ptfilt;
+	ptfilt.setInputCloud(cloudTemp) ;
+	ptfilt.setFilterFieldName("z") ;
+	ptfilt.setFilterLimits(MIN_KINECT_DIST, MAX_KINECT_DIST) ;
+	pcl::PointIndices::Ptr indices(new pcl::PointIndices()) ;
+	ptfilt.filter(indices->indices) ;
+	std::cout << indices->indices.size() ;*/
+
+	//Mark filtered points in the original cloud as a NaN
+	/*pcl::ExtractIndices<pcl::PointXYZRGB> indfilt ;
+	indfilt.setIndices(indices) ;
+	indfilt.setNegative(true) ;
+	indfilt.filterDirectly(cloud) ;*/
+}
+
 void addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
+	//Filter points too close and too far
+	ros::Time start = ros::Time::now();
+	filterCloudByDistance(cloud) ;
+	ros::Time stop = ros::Time::now() ;
+	ROS_INFO("Filtering points outside reliable Kinect scope time (s): [%.6lf]", (stop - start).toSec()) ;
+
+	//Testing cloud frustum
+	testCloud(cloud) ;
+
 	//Compute a transformation to bring a scene cloud into new cloud frame	
 	Eigen::Matrix4f trans ;
 	trans << cloud->sensor_orientation_.toRotationMatrix(), cloud->sensor_origin_.topRows<3>(), 0.0, 0.0, 0.0, 1.0 ;
@@ -115,10 +260,10 @@ void addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	//std::cout << transinv << std::endl ;
 
 	//Transform scene cloud into its original camera frame	
-	ros::Time start = ros::Time::now();
+	start = ros::Time::now();
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneTrans(new pcl::PointCloud<pcl::PointXYZRGB>) ;
 	pcl::transformPointCloud(*cloudScene, *cloudSceneTrans, transinv) ;
-	ros::Time stop = ros::Time::now() ;
+	stop = ros::Time::now() ;
 	ROS_INFO("Rigid Transform time (s): [%.6lf]", (stop - start).toSec()) ;
 
 	//Define intrinsic matrix (so far - added manually from external file) (TODO: use camera_info topics)

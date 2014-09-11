@@ -11,13 +11,15 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/visualization/common/common.h>
+#include <pcl/octree/octree.h>
 
 #define DMAX 0.05f
 #define CLOUD_WIDTH 640
 #define CLOUD_HEIGHT 480
 #define MIN_KINECT_DIST 0.8 
-#define MAX_KINECT_DIST 4.0 
-
+#define MAX_KINECT_DIST 4.0
+#define OCTREE_RESOLUTION 0.1
 
 struct SensorPose {
 	public:
@@ -34,6 +36,8 @@ PointCloudMsgListT cloudMsgQueue ;
 //Let us define our main scene cloud (will contain surfels soon...)
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudScene(new pcl::PointCloud<pcl::PointXYZRGB>) ;
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+
+pcl::octree::OctreePointCloudPointVector<pcl::PointXYZRGB> octree(OCTREE_RESOLUTION) ;
 
 bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 {
@@ -110,7 +114,6 @@ void downsampleSceneCloud()
 	sor.filter (*cloudSceneDownsampled);
 }
 
-
 //Modified PCL transformPointCloud function aimed at non-rigid homogenous transformations
 template <typename PointT, typename Scalar> void transformPointCloudNonRigid (const pcl::PointCloud<PointT> &cloud_in, 
 		pcl::PointCloud<PointT> &cloud_out, const Eigen::Matrix<Scalar, 4, 4> &transform)
@@ -175,6 +178,7 @@ void testCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 				0.0, 2 * beta / height, 2 * cy / height - 1.0, 0.0,
 				0.0, 0.0, (f + n) / (f - n), -2 * f * n / (f - n),
 				0.0, 0.0, 1.0, 0.0 ;
+	ROS_INFO("Testing projectionview matrix") ;
 	std::cout << "View matrix: " << std::endl << viewMatrix << std::endl ;
 	std::cout << "Projection matrix: " << std::endl << projectionMatrix << std::endl ;
 	Eigen::Matrix4d projectionViewMatrix = projectionMatrix * viewMatrix ;
@@ -197,7 +201,52 @@ void testCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 			if (point.y > maxy) maxy = point.y ;
 			if (point.z > maxz) maxz = point.z ;
 		}
-	ROS_INFO("x = [%f %f] y = [%f %f] z = [%f %f]", minx, maxx, miny, maxy, minz, maxz) ;
+	ROS_INFO("Projection space cube: x = [%f %f] y = [%f %f] z = [%f %f]", minx, maxx, miny, maxy, minz, maxz) ;
+
+	transformPointCloudNonRigid<pcl::PointXYZRGB, double>(*cloud, *cloudTemp, viewMatrix) ;
+	minx = miny = minz = 100.0f ;
+	maxx = maxy = maxz = -100.0f ;
+	for (uint32_t i = 0; i < cloudTemp->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
+		for (uint32_t j = 0; j < cloudTemp->width ; j++) {
+			pcl::PointXYZRGB &point = (*cloudTemp)(j, i) ;	
+			if (point.x < minx) minx = point.x ;
+			if (point.y < miny) miny = point.y ;
+			if (point.z < minz) minz = point.z ;
+			if (point.x > maxx) maxx = point.x ;
+			if (point.y > maxy) maxy = point.y ;
+			if (point.z > maxz) maxz = point.z ;
+		}
+	ROS_INFO("Camera space cube: x = [%f %f] y = [%f %f] z = [%f %f]", minx, maxx, miny, maxy, minz, maxz) ;
+
+	minx = miny = minz = 100.0f ;
+	maxx = maxy = maxz = -100.0f ;
+	for (uint32_t i = 0; i < cloud->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
+		for (uint32_t j = 0; j < cloud->width ; j++) {
+			pcl::PointXYZRGB &point = (*cloud)(j, i) ;	
+			if (point.x < minx) minx = point.x ;
+			if (point.y < miny) miny = point.y ;
+			if (point.z < minz) minz = point.z ;
+			if (point.x > maxx) maxx = point.x ;
+			if (point.y > maxy) maxy = point.y ;
+			if (point.z > maxz) maxz = point.z ;
+		}
+	ROS_INFO("World space cube: x = [%f %f] y = [%f %f] z = [%f %f]", minx, maxx, miny, maxy, minz, maxz) ;
+
+	//Computing frustum
+	double frustum[24] ;
+	pcl::visualization::getViewFrustum(projectionViewMatrix, frustum) ;
+
+	ROS_INFO("Testing frustum") ;
+	//Testing frustum (testing a series of world space cubes)
+	for (double x = -3.0; x <= 3.0 ; x += 0.5) 
+		for (double y = -3.0; y <= 3.0 ; y += 0.5) 
+			for (double z = -1.0; z <= 3.0 ; z += 0.5) {
+				Eigen::Vector3d min_bb(x, y, z) ;
+				Eigen::Vector3d max_bb(x + 0.5, y + 0.5, z + 0.5) ;
+				if (pcl::visualization::cullFrustum(frustum, min_bb, max_bb) == pcl::visualization::PCL_INSIDE_FRUSTUM)
+					ROS_INFO("Cube: x = [%f %f] y = [%f %f] z = [%f %f] %d", min_bb.x(), max_bb.x(), min_bb.y(), max_bb.y(), min_bb.z(), max_bb.z(), pcl::visualization::PCL_INSIDE_FRUSTUM) ;
+			}
+	
 }
 
 void filterCloudByDistance(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)

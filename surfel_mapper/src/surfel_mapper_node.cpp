@@ -15,6 +15,7 @@
 #include <pcl/visualization/common/common.h>
 #include <pcl/octree/octree.h>
 #include <pcl/octree/octree_impl.h>
+#include <pcl/octree/octree_iterator.h>
 
 #define DMAX 0.05f
 #define CLOUD_WIDTH 640
@@ -22,6 +23,39 @@
 #define MIN_KINECT_DIST 0.8 
 #define MAX_KINECT_DIST 4.0
 #define OCTREE_RESOLUTION 0.2 
+#define PREVIEW_RESOLUTION 0.2
+
+/*
+namespace pcl
+{
+	namespace octree
+	{
+		template<typename OctreeT>
+			class OctreeDepthFirstIteratorCorrect: public OctreeDepthFirstIterator<OctreeT> 
+		{
+			public:
+				OctreeDepthFirstIteratorCorrect (unsigned int max_depth_arg) : OctreeDepthFirstIterator<OctreeT> (max_depth_arg) {} 
+				OctreeDepthFirstIteratorCorrect (OctreeT* octree_arg, unsigned int max_depth_arg) : OctreeDepthFirstIterator<OctreeT>(octree_arg, max_depth_arg) {}
+				void skipChildVoxelsCorrect () //This actually works like ++ but without expanding ancestors in original function we actually skip siblings. After calling this function ++ is not necessary
+				{
+					if (this->stack_.size ())
+					{
+						this->stack_.pop_back() ;
+
+						if (this->stack_.size ())
+						{
+							this->current_state_ = &this->stack_.back();
+						} else
+						{
+							this->current_state_ = 0;
+						}
+					}
+				}  
+
+		} ; 
+	}
+}
+*/
 
 struct SensorPose {
 	public:
@@ -119,6 +153,61 @@ void downsampleSceneCloud()
 	sor.setInputCloud(cloudScene);
 	sor.setLeafSize (0.05f, 0.05f, 0.05f);
 	sor.filter (*cloudSceneDownsampled);
+}
+
+//skipChildVoxels in OctreeDepthFirstIterator actually skips all siblings, we want to skip actual children of the node
+void skipChildVoxelsCorrect(pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it, const pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it_end)
+{
+	unsigned int current_depth = it.getCurrentOctreeDepth() ;
+	it++ ;	
+	if (it != it_end && it.getCurrentOctreeDepth() > current_depth)
+		it.skipChildVoxels() ; //Actually we skip siblings of the child here
+}
+
+void downsampleSceneCloud1()
+{
+	//Establish maximum tree depth for display
+	unsigned int tree_depth = octree.getTreeDepth() ;
+	unsigned int display_depth = tree_depth ;
+	for (unsigned int depth = 1; depth <= tree_depth ; depth++) {
+		double voxel_side = sqrt(octree.getVoxelSquaredSideLen(depth)) ;
+		if (voxel_side <= PREVIEW_RESOLUTION) {
+			display_depth = depth ;
+			break ;
+		}
+	}
+
+	//Clear point cloud
+	cloudSceneDownsampled->clear() ;
+
+	//Convert voxels at fixed depth to points in a downsampled cloud
+	pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator it = octree.depth_begin() ;
+	const pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator it_end = octree.depth_end();
+	while(it != it_end) {
+		unsigned int current_depth = it.getCurrentOctreeDepth() ;
+		if (current_depth == display_depth) {
+			//Convert a voxel to a single point 
+			Eigen::Vector3f min_bb, max_bb ;
+			octree.getVoxelBounds(it, min_bb, max_bb) ;	
+			
+			pcl::PointXYZRGB point ;
+			point.x = (min_bb[0] + max_bb[0]) / 2 ;
+			point.y = (min_bb[1] + max_bb[1]) / 2 ;
+			point.z = (min_bb[2] + max_bb[2]) / 2 ;
+			point.r = point.g = point.b = 255 ;
+			point.a = 255 ;
+
+			//Add to point cloud
+			cloudSceneDownsampled->push_back(point) ;
+
+			//Ignore children
+			//it.skipChildVoxels() ;	
+			skipChildVoxelsCorrect(it, it_end) ;
+
+			//double voxel_side = sqrt(octree.getVoxelSquaredSideLen(current_depth)) ;
+			//std::cout << "side = " << max_bb[0] - min_bb[0] << " " ;
+		} else it++ ;
+	}
 }
 
 //Modified PCL transformPointCloud function aimed at non-rigid homogenous transformations
@@ -561,7 +650,7 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 
 	//Now downsample scene cloud
 	start = ros::Time::now() ;
-	downsampleSceneCloud() ;
+	downsampleSceneCloud1() ;
 	stop = ros::Time::now() ;
 	ROS_INFO("Cloud downsampling time(s): [%.6lf]", (stop - start).toSec()) ;
 }

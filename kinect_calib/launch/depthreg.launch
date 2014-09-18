@@ -1,6 +1,6 @@
 <launch>
   <!-- Parameters -->
-  <arg name="calib_path" default="$(find kinect_calib)/../../data/kinect_calib/calibration"/> 
+  <arg name="calib_path" default="$(find kinect_calib)/../../../data/kinect_calib/calibration"/> 
   <arg name="manager_name" default="rgbd_manager"/>
 
   <!-- Nodelet manager -->

@@ -210,6 +210,50 @@ void downsampleSceneCloud1()
 	}
 }
 
+
+void skipChildVoxelsCorrectTest(pcl::octree::OctreeBase<int>::DepthFirstIterator &it, const pcl::octree::OctreeBase<int>::DepthFirstIterator &it_end)
+{
+	unsigned int current_depth = it.getCurrentOctreeDepth() ;
+	it++ ;	
+	if (it != it_end && it.getCurrentOctreeDepth() > current_depth)
+		it.skipChildVoxels() ; //Actually we skip siblings of the child here
+}
+
+void testOctreeIterator()
+{
+	pcl::octree::OctreeBase<int> octreeA ;
+	const unsigned int depth = 2 ;
+	octreeA.setTreeDepth(depth) ;
+	for (unsigned int x = 0; x < 1u << depth; x++) 
+		for (unsigned int y = 0; y < 1u << depth; y++) 
+			for (int z = 0; z < 1u << depth; z++) {
+				int* voxel_container = octreeA.createLeaf(x, y, z);
+				*voxel_container = depth * depth * x + depth * y + z ;
+			}
+
+	pcl::octree::OctreeBase<int>::DepthFirstIterator it = octreeA.depth_begin() ;
+	const pcl::octree::OctreeBase<int>::DepthFirstIterator it_end = octreeA.depth_end();
+
+	int count = 0 ;
+	std::cout << std::endl ;
+	while(it != it_end) {
+		//if (it.isLeafNode()) {
+			const pcl::octree::OctreeKey key = it.getCurrentOctreeKey()	;
+			std::cout << key.x << key.y << key.z  ; 
+			if (it.isLeafNode())
+				std::cout << "l:" << it.getCurrentOctreeDepth() << "\t" ;
+			else
+				std::cout << "b:" << it.getCurrentOctreeDepth() << "\t" ;
+		//}
+		if (++count % 12 == 0)
+			std::cout << std::endl ;
+		if (it.getCurrentOctreeDepth() == 1)
+			skipChildVoxelsCorrectTest(it, it_end) ;
+		else
+			it++ ;
+	}
+}
+
 //Modified PCL transformPointCloud function aimed at non-rigid homogenous transformations
 template <typename PointT, typename Scalar> void transformPointCloudNonRigid (const pcl::PointCloud<PointT> &cloud_in, 
 		pcl::PointCloud<PointT> &cloud_out, const Eigen::Matrix<Scalar, 4, 4> &transform)
@@ -574,41 +618,43 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 			if (frustum_result == pcl::visualization::PCL_INSIDE_FRUSTUM)
 				acceptBelowDepth = it.getCurrentOctreeDepth() ; //We may mark that all nodes below will be automatically accepted
 		}
-	
+
 		if (frustum_result == pcl::visualization::PCL_OUTSIDE_FRUSTUM) 
-			it.skipChildVoxels() ;
-		else if (it.isLeafNode()) {
-			//Transform and update all points in a leaf
-			pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer();
-			std::vector<int> pointIndices ; 
-			container.getPointIndices (pointIndices);
-			pcl::PointXYZRGB pointTrans ;
-			for (int i = 0; i < pointIndices.size() ; i++)  {
-				transformPointAffine(cloudScene->points[pointIndices[i]], pointTrans, viewMatrix) ;
-				float xp = pointTrans.x / pointTrans.z ;
-				float yp = pointTrans.y / pointTrans.z ;
-				float u = alpha * xp + cx ;
-				float v = beta * yp + cy ;
-				float zscan = getZAtPosition(cloud, u, v) ;
-				surfels_inside_octree_frustum++ ;
-				if (std::isnan(zscan) || zscan >= 0.0f) //in both cases we hit image plane
-					surfels_projected_on_sensor++ ;
-				if (!std::isnan(zscan) && zscan >= 0.0f) {
-					//surfels_projected_on_sensor++ ;
-					if (fabs(zscan - pointTrans.z) <= DMAX) { 
-						//We have a surfel-scan match, we may update the surfel here... (TODO)
-						markScanAsCovered(scan_covered, u, v) ; 
-						nsurfels_updated++ ;
-					} else if (zscan - pointTrans.z > DMAX) {
-						//The observed point is behing the surfel, we may either remove the observation or the surfel (depending e.g. on the confidence)
-						markScanAsCovered(scan_covered, u, v) ;
-						nscan_too_far++ ;
-					} else
-						nscan_too_close++ ;
-				} else nsurfels_invalid_reading++ ;
+			skipChildVoxelsCorrect(it, it_end) ;
+		else { 
+			if (it.isLeafNode()) {
+				//Transform and update all points in a leaf
+				pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer();
+				std::vector<int> pointIndices ; 
+				container.getPointIndices (pointIndices);
+				pcl::PointXYZRGB pointTrans ;
+				for (int i = 0; i < pointIndices.size() ; i++)  {
+					transformPointAffine(cloudScene->points[pointIndices[i]], pointTrans, viewMatrix) ;
+					float xp = pointTrans.x / pointTrans.z ;
+					float yp = pointTrans.y / pointTrans.z ;
+					float u = alpha * xp + cx ;
+					float v = beta * yp + cy ;
+					float zscan = getZAtPosition(cloud, u, v) ;
+					surfels_inside_octree_frustum++ ;
+					if (std::isnan(zscan) || zscan >= 0.0f) //in both cases we hit image plane
+						surfels_projected_on_sensor++ ;
+					if (!std::isnan(zscan) && zscan >= 0.0f) {
+						//surfels_projected_on_sensor++ ;
+						if (fabs(zscan - pointTrans.z) <= DMAX) { 
+							//We have a surfel-scan match, we may update the surfel here... (TODO)
+							markScanAsCovered(scan_covered, u, v) ; 
+							nsurfels_updated++ ;
+						} else if (zscan - pointTrans.z > DMAX) {
+							//The observed point is behing the surfel, we may either remove the observation or the surfel (depending e.g. on the confidence)
+							markScanAsCovered(scan_covered, u, v) ;
+							nscan_too_far++ ;
+						} else
+							nscan_too_close++ ;
+					} else nsurfels_invalid_reading++ ;
+				}
 			}
-		}		
-		it++ ;
+			it++ ;
+		}
 	}
 	
 	stop = ros::Time::now() ;
@@ -621,7 +667,7 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	ROS_INFO("Surfels updated [%d]", nsurfels_updated) ;
 	ROS_INFO("Scan too far for surfel update [%d]", nscan_too_far) ;
 	ROS_INFO("Scan too close for surfel update [%d]", nscan_too_close) ;
-	ROS_INFO("Surfels without matching reading [%d]", nsurfels_invalid_reading) ;
+	ROS_INFO("Surfels without matching reading (NaN, outside frame) [%d]", nsurfels_invalid_reading) ;
 
 	start = ros::Time::now() ;
 	//Perform surfel-addition step
@@ -674,10 +720,10 @@ void processCloudMsgQueue()
 			cloud->sensor_orientation_ = sensor_pose.orientation ;
 
 			//Add cloud to the map
-			addPointCloudToScene1(cloud) ;
 			ROS_INFO("-------------->Adding point cloud [%d, %d]", msg->header.stamp.sec, msg->header.stamp.nsec) ;
 			ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
 			ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
+			addPointCloudToScene1(cloud) ;
 
 			//Remove message from queue
 			cloudMsgQueue.pop_front() ;	
@@ -687,7 +733,7 @@ void processCloudMsgQueue()
 
 void pathCallback(const nav_msgs::Path::ConstPtr& msg)
 {
-	ROS_INFO("pathCallback: [%s]", msg->header.frame_id.c_str());
+	ROS_DEBUG("pathCallback: [%s]", msg->header.frame_id.c_str());
 	current_path = msg ;
 }
 
@@ -718,11 +764,13 @@ int main(int argc, char **argv)
 	ros::Subscriber sub_path = n.subscribe("path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 5, keyframeCallback);
 
-	ros::Publisher map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap", 5);
+	ros::Publisher map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
 
 	ros::Rate r(2) ;
 
 	octree.setInputCloud(cloudScene) ;
+
+	//testOctreeIterator() ;
 
 	while(ros::ok()) {
 		ros::spinOnce();
@@ -730,7 +778,7 @@ int main(int argc, char **argv)
 		ros::Time start = ros::Time::now() ;
 		sendMapMessage(map_pub) ;
 		ros::Time stop = ros::Time::now() ;
-		ROS_INFO("Sending Map Message time (s): [%.6lf]", (stop - start).toSec()) ;
+		ROS_DEBUG("Sending Map Message time (s): [%.6lf]", (stop - start).toSec()) ;
 		r.sleep() ;
 
 		//ros::Time time_stamp ;

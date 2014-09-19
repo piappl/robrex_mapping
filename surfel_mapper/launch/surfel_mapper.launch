@@ -19,6 +19,9 @@
 		<!--Publishing settings-->
 		<param name="reg/ICPProbModel/publish_model_cloud" value="true"/>
 		<param name="feature/publish_feature_cloud" value="true"/>
+		
+		<!--Registration settings-->
+		<param name="reg/ICPProbModel/max_model_size" value="20000"/>
 	</node>
 
 	<!--KeyFrame Capture-->

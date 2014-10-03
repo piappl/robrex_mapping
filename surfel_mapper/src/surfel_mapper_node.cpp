@@ -26,6 +26,7 @@
 #define MAX_KINECT_DIST 4.0
 #define OCTREE_RESOLUTION 0.2 
 #define PREVIEW_RESOLUTION 0.2
+#define PREVIEW_COLOR_SAMPLES_IN_VOXEL 3
 
 /*
 namespace pcl
@@ -179,6 +180,41 @@ void skipChildVoxelsCorrect(pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::Dep
 		it.skipChildVoxels() ; //Actually we skip siblings of the child here
 }
 
+void computeVoxelColor(pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it, const pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it_end, pcl::PointXYZRGB &point)
+{
+	//Select a few pixels from the current voxel and compute an average	
+	unsigned int current_depth = it.getCurrentOctreeDepth() ;
+	unsigned long rs, gs, bs ;
+	rs = gs = bs = 0 ;
+	unsigned long count  = 0;
+	bool first_it = true ; //We must take into account also the starting node - it might be a leaf!
+	while(it != it_end && (it.getCurrentOctreeDepth() > current_depth || first_it)) {
+		first_it = false ;
+		if (it.isLeafNode()) {
+			//Examine points in the voxel	
+			pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer();
+			std::vector<int> pointIndices ; 
+			container.getPointIndices (pointIndices);
+			unsigned int step = pointIndices.size() / PREVIEW_COLOR_SAMPLES_IN_VOXEL;
+			if (step < 1) step = 1 ;
+			//Now select every "step" - point
+			for (unsigned int i = 0; i < pointIndices.size() ; i += step) {
+				pcl::PointXYZRGB p = cloudScene->points[pointIndices[i]] ;
+				rs += p.r ;
+				gs += p.g ;
+				bs += p.b ;
+				count++ ;
+			}
+		}
+		it++ ;
+	}
+	if (count > 0) {
+		point.r = rs / count ;
+		point.g = gs / count ;
+		point.b = bs / count ;
+	}
+}
+
 void downsampleSceneCloud1()
 {
 	//Establish maximum tree depth for display
@@ -212,12 +248,14 @@ void downsampleSceneCloud1()
 			point.r = point.g = point.b = 255 ;
 			point.a = 255 ;
 
+			computeVoxelColor(it, it_end, point) ; //Computes average color from some selected voxel points and performs skip child voxels procedure at the same time
+
 			//Add to point cloud
 			cloudSceneDownsampled->push_back(point) ;
 
 			//Ignore children
 			//it.skipChildVoxels() ;	
-			skipChildVoxelsCorrect(it, it_end) ;
+			//skipChildVoxelsCorrect(it, it_end) ;
 
 			//double voxel_side = sqrt(octree.getVoxelSquaredSideLen(current_depth)) ;
 			//std::cout << "side = " << max_bb[0] - min_bb[0] << " " ;

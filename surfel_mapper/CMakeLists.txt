@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   nav_msgs
+  tf
+  tf_conversions
 )
 
 find_package(Eigen3 REQUIRED)

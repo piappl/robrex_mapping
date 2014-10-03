@@ -4,6 +4,8 @@
 #include "pcl_conversions/pcl_conversions.h"
 #include <Eigen/Geometry>
 #include <limits.h>
+#include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>  
 
 #include <pcl/common/common_headers.h>
 #include <pcl/filters/filter_indices.h>
@@ -75,15 +77,22 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled(new pcl::PointCloud
 
 pcl::octree::OctreePointCloudPointVector<pcl::PointXYZRGB> octree(OCTREE_RESOLUTION) ;
 
+Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
+
 bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 {
-	if (!current_path) 
+	if (!current_path) {
+		ROS_WARN("No odometry path message available!") ;
 		return false ;
-	else if (current_path->poses.empty()) 
+	} else if (current_path->poses.empty()) {
+		ROS_WARN("Empty list of poses in odometry path message") ;
 		return false ;
-	else if (current_path->poses.front().header.stamp > time_stamp || current_path->poses.back().header.stamp < time_stamp) 
+	} else if (current_path->poses.front().header.stamp > time_stamp || current_path->poses.back().header.stamp < time_stamp) {
+		ROS_WARN("Odometry path message does not contain pose corresponding with the keyframe. Keyframe timestamp [%d.%d]. Odometry timestamps [%d.%d]-[%d.%d]", 
+				time_stamp.sec, time_stamp.nsec, current_path->poses.front().header.stamp.sec, current_path->poses.front().header.stamp.nsec, 
+				current_path->poses.back().header.stamp.sec, current_path->poses.back().header.stamp.nsec) ;
 		return false ;
-	else {
+	} else {
 		//Search by bi-section
 		size_t i, j, k ;
 		i = 0 ; j = current_path->poses.size() - 1 ;
@@ -105,9 +114,15 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 
 		geometry_msgs::PoseStamped pose_stamped = current_path->poses[k] ;
 		//ROS_INFO("Stamp found for k = %ld (out of %ld), number of steps [%ld]", k, current_path->poses.size(), steps) ;
+		//ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, current_path->poses[i].header.stamp.sec, current_path->poses[i].header.stamp.nsec) ;
+		//ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, current_path->poses[j].header.stamp.sec, current_path->poses[j].header.stamp.nsec) ;
+		ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, pose_stamped.header.stamp.sec, pose_stamped.header.stamp.nsec) ;
+
 		sensor_pose.origin = Eigen::Vector4f((float) pose_stamped.pose.position.x, (float) pose_stamped.pose.position.y, (float) pose_stamped.pose.position.z, 1.0f) ;
 		sensor_pose.orientation = Eigen::Quaternionf((float) pose_stamped.pose.orientation.w, (float) pose_stamped.pose.orientation.x, 
 							     (float) pose_stamped.pose.orientation.y, (float) pose_stamped.pose.orientation.z) ;
+		std::cout << "Orientation: " << pose_stamped.pose.orientation.w << " " << pose_stamped.pose.orientation.x << " " << pose_stamped.pose.orientation.y << " " << pose_stamped.pose.orientation.z << std::endl ;
+		std::cout << "Pose: " << pose_stamped.pose.position.x << " " << pose_stamped.pose.position.y << " " << pose_stamped.pose.position.z << " " << std::endl ;
 		return true ;
 	}
 }
@@ -209,7 +224,6 @@ void downsampleSceneCloud1()
 		} else it++ ;
 	}
 }
-
 
 void skipChildVoxelsCorrectTest(pcl::octree::OctreeBase<int>::DepthFirstIterator &it, const pcl::octree::OctreeBase<int>::DepthFirstIterator &it_end)
 {
@@ -393,17 +407,17 @@ void filterCloudByDistance(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
 	//TODO: this filtering requires cloud transformation and takes 10-20 ms - consider performing this at the time of image acquisition
 	//Transform cloud to the original frame	
-	Eigen::Matrix4f trans ;
+	/*Eigen::Matrix4f trans ;
 	trans << cloud->sensor_orientation_.toRotationMatrix(), cloud->sensor_origin_.topRows<3>(), 0.0, 0.0, 0.0, 1.0 ;
 	Eigen::Matrix4f transinv = trans.inverse() ;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZRGB>) ;
-	pcl::transformPointCloud(*cloud, *cloudTemp, transinv) ;
+	pcl::transformPointCloud(*cloud, *cloudTemp, transinv) ;*/
 
 	//int pointsUpdated = 0 ;
 	//Manually NaNing points outside effective Kinect scope
-	for (uint32_t i = 0; i < cloudTemp->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
-		for (uint32_t j = 0; j < cloudTemp->width ; j++) {
-			float zscan = (*cloudTemp)(j, i).z ;	
+	for (uint32_t i = 0; i < cloud->height ; i++) //For cloud scene it will be 1 (unorganized cloud) 
+		for (uint32_t j = 0; j < cloud->width ; j++) {
+			float zscan = (*cloud)(j, i).z ;	
 			if (!std::isnan(zscan) && (zscan > MAX_KINECT_DIST || zscan < MIN_KINECT_DIST)) {
 				pcl::PointXYZRGB &point = (*cloud)(j, i) ;	
 				point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN () ;
@@ -542,11 +556,6 @@ inline void transformPointAffine(pcl::PointXYZRGB &point_in, pcl::PointXYZRGB &p
 
 void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 {
-	//Filter points too close and too far
-	ros::Time start = ros::Time::now();
-	filterCloudByDistance(cloud) ;
-	ros::Time stop = ros::Time::now() ;
-	ROS_INFO("Filtering points outside reliable Kinect scope time (s): [%.6lf]", (stop - start).toSec()) ;
 
 	//Testing cloud frustum
 	//testCloud(cloud) ;
@@ -559,15 +568,50 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	double width = 640 ;
 	double height = 480 ;
 
-	//Compute a projection view matrix
-	double f = MAX_KINECT_DIST ; 
-	double n = MIN_KINECT_DIST ;
+	ros::Time start, stop ;
 
+	//Compute a view matrix
 	Eigen::Matrix4d viewMatrix ;
 	viewMatrix << cloud->sensor_orientation_.toRotationMatrix().cast<double>(), cloud->sensor_origin_.topRows<3>().cast<double>(), 0.0, 0.0, 0.0, 1.0 ;
-	viewMatrix = viewMatrix.inverse() ;
-	//Eigen::Matrix4f viewMatrixf = viewMatrix.cast<float>() ;
 
+	std::cout << "Transform matrix used:" << std::endl ;
+	std::cout <<  viewMatrix ;
+	std::cout.flush() ;
+	//viewMatrix = viewMatrix.inverse() * cameraRgbToCameraLinkTrans ;
+	viewMatrix = viewMatrix.inverse() ;
+
+	//Transform input cloud into camera coordinate system (each keyframe is referenced to the global coord. system by ccny_rgbd) 
+	start = ros::Time::now();
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTrans(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+	pcl::transformPointCloud(*cloud, *cloudTrans, viewMatrix) ;
+	stop = ros::Time::now() ;
+	ROS_INFO("Keyframe transformation into original camera frame time (s): [%.6lf]", (stop - start).toSec()) ;
+
+	//Debug - display the cloud transformed back 
+	/*	
+	for (uint32_t i = 0; i < cloud->height ; i++)  {
+		for (uint32_t j = 0; j < cloud->width ; j++) { 
+			pcl::PointXYZRGB pointTrans = (*cloudTrans)(j, i) ;
+			if (i % 50 == 0 && j % 50 ==0 && pcl::isFinite(pointTrans)) {
+				float xp = pointTrans.x / pointTrans.z ;
+				float yp = pointTrans.y / pointTrans.z ;
+				float u = alpha * xp + cx ;
+				float v = beta * yp + cy ;
+				std::cout << "(" << j << "," << i << "):" << u << " " << v << " " << pointTrans.z << " \n" ;
+			}
+		}
+	}
+	*/
+
+	//Filter points too close and too far
+	start = ros::Time::now();
+	filterCloudByDistance(cloudTrans) ;
+	stop = ros::Time::now() ;
+	ROS_INFO("Filtering points outside reliable Kinect scope time (s): [%.6lf]", (stop - start).toSec()) ;
+
+	//Compute a projection matrix	
+	double f = MAX_KINECT_DIST ; 
+	double n = MIN_KINECT_DIST ;
 	Eigen::Matrix4d projectionMatrix ; 
 	projectionMatrix << 2 * alpha / width, 0.0, 2 * cx / width - 1.0, 0.0,
 				0.0, 2 * beta / height, 2 * cy / height - 1.0, 0.0,
@@ -576,6 +620,7 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	//std::cout << "View matrix: " << std::endl << viewMatrix << std::endl ;
 	//std::cout << "Projection matrix: " << std::endl << projectionMatrix << std::endl ;
 
+	//Compute a projection-view matrix
 	Eigen::Matrix4d projectionViewMatrix = projectionMatrix * viewMatrix ;
 
 	//Computing frustum
@@ -595,6 +640,11 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	unsigned int nsurfels_invalid_reading = 0 ;
 	start = ros::Time::now();
 
+	float umin = 1e6 ;
+	float umax = -1e6 ;
+	float vmin = 1e6 ;
+	float vmax = -1e6 ;
+	
 	//Iterate Octree in a depth-first manner
 	unsigned int acceptBelowDepth = UINT_MAX ;
 	pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator it = octree.depth_begin() ;
@@ -619,6 +669,7 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 				acceptBelowDepth = it.getCurrentOctreeDepth() ; //We may mark that all nodes below will be automatically accepted
 		}
 
+
 		if (frustum_result == pcl::visualization::PCL_OUTSIDE_FRUSTUM) 
 			skipChildVoxelsCorrect(it, it_end) ;
 		else { 
@@ -634,7 +685,13 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 					float yp = pointTrans.y / pointTrans.z ;
 					float u = alpha * xp + cx ;
 					float v = beta * yp + cy ;
-					float zscan = getZAtPosition(cloud, u, v) ;
+					
+					if (u <= umin) umin = u ;
+					if (u >= umax) umax = u ;
+					if (v <= vmin) vmin = v ;
+					if (v >= vmax) vmax = v ;
+
+					float zscan = getZAtPosition(cloudTrans, u, v) ;
 					surfels_inside_octree_frustum++ ;
 					if (std::isnan(zscan) || zscan >= 0.0f) //in both cases we hit image plane
 						surfels_projected_on_sensor++ ;
@@ -656,6 +713,17 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 			it++ ;
 		}
 	}
+
+	ROS_INFO("(u,v)-bounds: [%f,%f], [%f, %f]", umin, umax, vmin, vmax) ;
+
+	unsigned int nscans_covered = 0 ;
+	//Debug - counting positive elements in scan_covered
+	for (int i = 0; i < cloud->height ; i++)
+		for (int j = 0; j < cloud->width ; j++)
+			if (scan_covered[i][j])
+				nscans_covered++ ;
+
+	ROS_INFO("No. of scans covered [%d]", nscans_covered) ;
 	
 	stop = ros::Time::now() ;
 	ROS_INFO("Surfels inside octree frustum [%d]", surfels_inside_octree_frustum) ;
@@ -670,25 +738,42 @@ void addPointCloudToScene1(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)
 	ROS_INFO("Surfels without matching reading (NaN, outside frame) [%d]", nsurfels_invalid_reading) ;
 
 	start = ros::Time::now() ;
-	//Perform surfel-addition step
+	/*//Perform surfel-addition step
 	//Create temporary point cloud (of surfels) to be concatenated with the scene cloud (TODO we may do without intermediary cloud, perhaps faster)	
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTemp(new pcl::PointCloud<pcl::PointXYZRGB>) ;
 	pcl::copyPointCloud(*cloud, *cloudTemp) ;
+	*/
+
+	Eigen::Matrix4d viewMatrixInv = viewMatrix.inverse() ;
 
 	unsigned int surfels_added = 0 ;
+	double distance  = 0.0 ;
+	int distance_count = 0 ;
 	//Update surfel data in the cloud to add and remove covered measurements
 	for (uint32_t i = 0; i < cloud->height ; i++) 
 		for (uint32_t j = 0; j < cloud->width ; j++) { 
-			if (!scan_covered[i][j]) {
+			if (!scan_covered[i][j] && pcl::isFinite((*cloudTrans)(j, i))) { //We check cloudTrans - since it reflect point invalidations due to distance
 				//Add a new point to the scene cloud (and the associated octree)
-				pcl::PointXYZRGB &point = (*cloud)(j, i) ;
-				if (pcl::isFinite(point)) {
-					octree.addPointToCloud(point, cloudScene) ;
-					surfels_added++ ;
-					//TODO Some other (more complex) processing is required here...
-				}
+				octree.addPointToCloud((*cloud)(j, i), cloudScene) ;
+				surfels_added++ ;
+				//Debug - add point using cloudTrans data
+				
+					/*float xp = (j - cx) / alpha ;
+					float yp = (i - cy) / beta ;
+					pcl::PointXYZRGB p = (*cloudTrans)(j, i) ;
+					p.x = xp * p.z ; 
+					p.y = yp * p.z ;
+					pcl::PointXYZRGB p1 ;
+					transformPointAffine(p, p1, viewMatrixInv) ;
+					//octree.addPointToCloud(p1, cloudScene) ;
+					distance += fabs((*cloud)(j, i).x - p1.x) + fabs((*cloud)(j, i).y - p1.y) + fabs((*cloud)(j, i).z - p1.z) ;
+					distance_count++ ;*/
+				
+				//TODO Some other (more complex) processing is required here...
 			}
 		}
+
+	//ROS_INFO("Average distance between corresponding points [%f]", distance / distance_count) ;
 	stop = ros::Time::now() ;
 	ROS_INFO("Surfel addition time (s): [%.6lf]", (stop - start).toSec()) ;
 	ROS_INFO("Surfels added [%d]", surfels_added) ;
@@ -724,6 +809,7 @@ void processCloudMsgQueue()
 			ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
 			ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
 			addPointCloudToScene1(cloud) ;
+			//addPointCloudToScene1(cloud) ;
 
 			//Remove message from queue
 			cloudMsgQueue.pop_front() ;	
@@ -761,7 +847,7 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "surfel_mapper");
 	ros::NodeHandle n;
 
-	ros::Subscriber sub_path = n.subscribe("path", 3, pathCallback);
+	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 5, keyframeCallback);
 
 	ros::Publisher map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
@@ -771,6 +857,29 @@ int main(int argc, char **argv)
 	octree.setInputCloud(cloudScene) ;
 
 	//testOctreeIterator() ;
+
+
+	tf::TransformListener listener ;
+
+	while(ros::ok()) {
+		ROS_INFO("Waiting for camera_link->camera_rgb_optical_frame transform") ;
+		tf::StampedTransform transform;
+		try {
+			listener.waitForTransform("camera_link", "camera_rgb_optical_frame", ros::Time(0), ros::Duration(0.5) );
+			listener.lookupTransform("camera_link", "camera_rgb_optical_frame", ros::Time(0), transform);
+			ROS_INFO("Transform found!") ;
+			Eigen::Affine3d affTrans ;
+			tf::transformTFToEigen(transform, affTrans) ;
+			//cameraRgbToCameraLinkTrans = affTrans.matrix().inverse() ;
+			cameraRgbToCameraLinkTrans = affTrans.matrix().inverse() ;
+			std::cout << cameraRgbToCameraLinkTrans << std::endl ;
+			break ;
+		}
+		catch (tf::TransformException &ex) {
+			ROS_ERROR("%s",ex.what());
+			r.sleep() ;
+		}
+	}
 
 	while(ros::ok()) {
 		ros::spinOnce();

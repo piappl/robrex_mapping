@@ -1,9 +1,7 @@
 <!-- Launch surfel mapper-->
 <launch> 
-	<!-- 
 	<node pkg="tf" type="static_transform_publisher" name="camera_depth_optical_frame_tf"
 	args="0 0 0 0 0 0 1  /camera_link /camera_depth_optical_frame 40" />        
-	-->
 
 	<!--Visual Odometry -->
 	<node pkg="ccny_rgbd" type="visual_odometry_node" name="visual_odometry_node" output="screen">
@@ -13,8 +11,8 @@
 		<remap from="/rgbd/info"  to="/camera/rgb/camera_info"/>
 
 		<!--Set base frame to camera_depth_optical_frame so we don't have to define additional camera_link frame-->
-		<!--odom would a parent of camera_depth_optical_frame, so the root of our whole tree -->
-		<param name="base_frame"  value="/camera_depth_optical_frame"/> 
+		<!--odom would a parent of camera_depth_optical_frame, so the root of our whole tree would be?? -->
+		<!--<param name="base_frame"  value="/camera_depth_optical_frame"/>-->
 
 		<!--Publishing settings-->
 		<param name="reg/ICPProbModel/publish_model_cloud" value="true"/>

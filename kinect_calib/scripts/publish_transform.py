@@ -44,7 +44,7 @@ if __name__ == '__main__':
 	
 	#Initialize transfrom broadcaster
 	br = tf2_ros.TransformBroadcaster()
-	r = rospy.Rate(1)
+	r = rospy.Rate(30)
 
         #Prepare message 
         msg = gm.TransformStamped()
@@ -64,6 +64,7 @@ if __name__ == '__main__':
 
 	#Broadcast transforms
 	while not rospy.is_shutdown():
-            msg.header.stamp = rospy.Time.now() + r.sleep_dur + r.sleep_dur #Publish one period in the future to prevent 'extrapolation' exceptions (copied from ROS static_transform_publisher)
-	    br.sendTransform(msg)
+            #msg.header.stamp = rospy.Time.now() + r.sleep_dur + r.sleep_dur #Publish two periods in the future to prevent 'extrapolation' exceptions (copied from ROS static_transform_publisher)
+	    msg.header.stamp = rospy.Time.now() + r.sleep_dur + r.sleep_dur
+            br.sendTransform(msg)
             r.sleep()

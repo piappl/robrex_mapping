@@ -86,10 +86,10 @@ find_package(PCL 1.7 REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES surfel_mapper
-#  CATKIN_DEPENDS roscpp rospy sensor_msgs std_msgs
-#  DEPENDS system_lib
+  INCLUDE_DIRS include
+  # LIBRARIES surfel_mapper
+  CATKIN_DEPENDS roscpp rospy sensor_msgs std_msgs nav_msgs tf tf_conversions
+  # DEPENDS system_lib
 )
 
 ###########
@@ -99,6 +99,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
+include_directories(include)
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
@@ -112,7 +113,7 @@ add_definitions(${PCL_DEFINITIONS})
 # )
 
 ## Declare a cpp executable
-add_executable(surfel_mapper src/surfel_mapper_node.cpp)
+add_executable(surfel_mapper src/surfel_mapper_node.cpp src/surfel_mapper.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes

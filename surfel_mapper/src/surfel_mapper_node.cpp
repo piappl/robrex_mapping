@@ -7,6 +7,7 @@
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>  
 #include "surfel_mapper.hpp"
+ #include "/home/awilkowski/robrex/ros/workspace/devel/include/surfel_mapper/ResetMap.h"
 
 struct SensorPose {
 	public:
@@ -22,20 +23,39 @@ PointCloudMsgListT cloudMsgQueue ;
 
 Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
 
-SurfelMapper surfel_mapper ;
+SurfelMapper mapper ;
+
+//ccny_rgbd uses timestamps for keyframes compatible with rgb camera, but odometry path is time stamped anew (so it can be actually some microseconds later than keyframe
+//simple workaround is to round time stamps to miliseconds.TODO: possibly some patch to ccny_rgbd could be proposed?
+
+ros::Time roundTimeStamp(const ros::Time &time_stamp)
+{
+	ros::Time rounded_time_stamp = time_stamp ;
+	uint32_t time_stamp_nsec_mod = time_stamp.nsec % 1000000l ;   
+	rounded_time_stamp.nsec -= time_stamp_nsec_mod ; //Results in full milliseconds contained in the timestamp 
+		if (time_stamp_nsec_mod > 500000l) { //If the remainder was grater than 0.5 millisecond
+			rounded_time_stamp.nsec += 1000000l ; //Round up to the full milisecond
+			if (rounded_time_stamp.nsec == 1000000000l) { //And if after addition we hit a full second (should not overflow on int32)
+				rounded_time_stamp.sec++ ;
+				rounded_time_stamp.nsec = 0l ;
+			}
+		}
+	return rounded_time_stamp ;
+}
 
 bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 {
+	ros::Time time_stamp_rounded = roundTimeStamp(time_stamp) ;	
 	if (!current_path) {
 		ROS_WARN("No odometry path message available!") ;
 		return false ;
 	} else if (current_path->poses.empty()) {
 		ROS_WARN("Empty list of poses in odometry path message") ;
 		return false ;
-	} else if (current_path->poses.front().header.stamp > time_stamp || current_path->poses.back().header.stamp < time_stamp) {
-		ROS_WARN("Odometry path message does not contain pose corresponding with the keyframe. Keyframe timestamp [%d.%d]. Odometry timestamps [%d.%d]-[%d.%d]", 
-				time_stamp.sec, time_stamp.nsec, current_path->poses.front().header.stamp.sec, current_path->poses.front().header.stamp.nsec, 
-				current_path->poses.back().header.stamp.sec, current_path->poses.back().header.stamp.nsec) ;
+	} else if (roundTimeStamp(current_path->poses.front().header.stamp) > time_stamp_rounded || roundTimeStamp(current_path->poses.back().header.stamp) < time_stamp_rounded) {
+		ROS_WARN("Odometry path message does not contain pose corresponding with the keyframe. Keyframe timestamp (rounded) [%d.%d]. Odometry timestamps (rounded) [%d.%d]-[%d.%d]", 
+				time_stamp_rounded.sec, time_stamp_rounded.nsec, roundTimeStamp(current_path->poses.front().header.stamp).sec, roundTimeStamp(current_path->poses.front().header.stamp).nsec, 
+				roundTimeStamp(current_path->poses.back().header.stamp).sec, roundTimeStamp(current_path->poses.back().header.stamp).nsec) ;
 		return false ;
 	} else {
 		//Search by bi-section
@@ -43,15 +63,15 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 		i = 0 ; j = current_path->poses.size() - 1 ;
 		while (i + 1 < j) {
 			k = (i + j) / 2 ;
-			if (current_path->poses[k].header.stamp <= time_stamp)
+			if (roundTimeStamp(current_path->poses[k].header.stamp) <= time_stamp_rounded)
 				i = k ;
 			else
 				j = k ;
 		}
 
 		//Find closest match (nearest neighbor)	
-		ros::Duration duri = time_stamp - current_path->poses[i].header.stamp ;
-		ros::Duration durj = current_path->poses[j].header.stamp - time_stamp ;
+		ros::Duration duri = roundTimeStamp(time_stamp) - roundTimeStamp(current_path->poses[i].header.stamp) ;
+		ros::Duration durj = roundTimeStamp(current_path->poses[j].header.stamp) - roundTimeStamp(time_stamp) ;
 		if (duri < durj)
 			k = i ;
 		else
@@ -61,7 +81,7 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 		//ROS_INFO("Stamp found for k = %ld (out of %ld), number of steps [%ld]", k, current_path->poses.size(), steps) ;
 		//ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, current_path->poses[i].header.stamp.sec, current_path->poses[i].header.stamp.nsec) ;
 		//ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, current_path->poses[j].header.stamp.sec, current_path->poses[j].header.stamp.nsec) ;
-		ROS_INFO("search time stamp [%d,%d], found time stamp [%d,%d]", time_stamp.sec, time_stamp.nsec, pose_stamped.header.stamp.sec, pose_stamped.header.stamp.nsec) ;
+		ROS_INFO("search time stamp (rounded) [%d,%d], found time stamp (rounded) [%d,%d]", time_stamp_rounded.sec, time_stamp_rounded.nsec, roundTimeStamp(pose_stamped.header.stamp).sec, roundTimeStamp(pose_stamped.header.stamp).nsec) ;
 
 		sensor_pose.origin = Eigen::Vector4f((float) pose_stamped.pose.position.x, (float) pose_stamped.pose.position.y, (float) pose_stamped.pose.position.z, 1.0f) ;
 		sensor_pose.orientation = Eigen::Quaternionf((float) pose_stamped.pose.orientation.w, (float) pose_stamped.pose.orientation.x, 
@@ -96,7 +116,7 @@ void processCloudMsgQueue()
 			ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
 			ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
 
-			surfel_mapper.addPointCloudToScene(cloud) ;
+			mapper.addPointCloudToScene(cloud) ;
 			//addPointCloudToScene1(cloud) ;
 
 			//Remove message from queue
@@ -121,7 +141,7 @@ void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 
 void sendMapMessage(ros::Publisher &map_pub) 
 {
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = surfel_mapper.getCloudSceneDownsampled() ;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = mapper.getCloudSceneDownsampled() ;
 
 	pcl::PCLPointCloud2 pcl_pc2;
 	pcl::toPCLPointCloud2(*cloudSceneDownsampled, pcl_pc2) ;
@@ -132,6 +152,16 @@ void sendMapMessage(ros::Publisher &map_pub)
 }
 
 
+bool resetMapCallback(
+  surfel_mapper::ResetMap::Request& request,
+  surfel_mapper::ResetMap::Response& response)
+{
+	ROS_INFO("ResetMap request arrived") ;	
+	mapper.resetMap() ;
+	ROS_INFO("The map has been reset") ;	
+	return true ;
+}
+
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "surfel_mapper");
@@ -141,6 +171,8 @@ int main(int argc, char **argv)
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 5, keyframeCallback);
 
 	ros::Publisher map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
+
+	ros::ServiceServer service = n.advertiseService("reset_map", resetMapCallback);
 
 	ros::Rate r(2) ;
 
@@ -169,6 +201,17 @@ int main(int argc, char **argv)
 			r.sleep() ;
 		}
 	}
+
+
+	ros::Time time_stamp, time_stamp_rounded ;
+	time_stamp.sec = 100l ;
+	time_stamp.nsec = 999501341l ;
+	
+
+	time_stamp_rounded = roundTimeStamp(time_stamp) ;
+
+	ROS_INFO("Test time_stamp rounding: original: sec = %d, nsec = %d", time_stamp.sec, time_stamp.nsec) ;
+	ROS_INFO("Test time_stamp rounding: rounded: sec = %d, nsec = %d", time_stamp_rounded.sec, time_stamp_rounded.nsec) ;
 
 	while(ros::ok()) {
 		ros::spinOnce();

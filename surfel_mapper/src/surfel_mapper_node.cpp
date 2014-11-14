@@ -1,13 +1,20 @@
 #include "ros/ros.h"
 #include "nav_msgs/Path.h"
 #include "sensor_msgs/PointCloud2.h"
+#include "visualization_msgs/Marker.h"
+#include "visualization_msgs/MarkerArray.h"
 #include "pcl_conversions/pcl_conversions.h"
+#include "pcl/common/point_tests.h"
 #include <Eigen/Geometry>
 #include <limits.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>  
 #include "surfel_mapper.hpp"
- #include "/home/awilkowski/robrex/ros/workspace/devel/include/surfel_mapper/ResetMap.h"
+#include "surfel_mapper/ResetMap.h"
+#include "surfel_mapper/PublishMap.h"
+#include <algorithm>
+#include <math.h>
+#include "logger.hpp"
 
 struct SensorPose {
 	public:
@@ -21,9 +28,13 @@ typedef std::list<sensor_msgs::PointCloud2::ConstPtr> PointCloudMsgListT ;
 nav_msgs::Path::ConstPtr current_path ;
 PointCloudMsgListT cloudMsgQueue ;
 
-Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
+//Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
 
 SurfelMapper mapper ;
+
+ros::Publisher surfel_map_pub ;
+
+Logger logger ;
 
 //ccny_rgbd uses timestamps for keyframes compatible with rgb camera, but odometry path is time stamped anew (so it can be actually some microseconds later than keyframe
 //simple workaround is to round time stamps to miliseconds.TODO: possibly some patch to ccny_rgbd could be proposed?
@@ -139,7 +150,7 @@ void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 	processCloudMsgQueue() ;
 }
 
-void sendMapMessage(ros::Publisher &map_pub) 
+void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub) 
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = mapper.getCloudSceneDownsampled() ;
 
@@ -148,9 +159,70 @@ void sendMapMessage(ros::Publisher &map_pub)
 	sensor_msgs::PointCloud2 cloud_msg ;
 	pcl_conversions::fromPCL(pcl_pc2, cloud_msg) ;
 	cloud_msg.header.frame_id = "/odom" ;
-	map_pub.publish(cloud_msg) ;
+	downsampled_map_pub.publish(cloud_msg) ;
 }
 
+void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vector3f &max_bb) 
+{
+	pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene = mapper.getCloudScene() ;
+	std::vector<int> point_indices ;
+	mapper.getBoundingBoxIndices(min_bb, max_bb, point_indices) ;
+	
+	//When iterating through point cloud - we encounter also NaN surfels: 
+	//TODO: might be better to iterate the original tree or remove NaNs from the cloud before sending
+
+	visualization_msgs::Marker marker;
+	visualization_msgs::MarkerArray marray ;
+	
+	marker.header.frame_id = "/odom";
+	marker.header.stamp = ros::Time();
+	marker.ns = "surfelmap";
+	marker.type = visualization_msgs::Marker::CYLINDER ;
+	marker.action = visualization_msgs::Marker::ADD ;
+
+	marker.color.a = 1.0f;
+	marker.pose.orientation.w = 1.0f;
+
+#define MAX_MARKERS 100000
+	Eigen::Vector3f zaxis(0.0f, 0.0f, 1.0f) ;
+	Eigen::Quaternionf orientation ; 
+	size_t nmarkers = std::min<unsigned int>(point_indices.size(), MAX_MARKERS) ;
+	for (size_t i = 0; i < nmarkers ; i++) {
+		PointCustomSurfel &point = cloudScene->at(point_indices[i]) ;
+		if (pcl::isFinite(point) && i % 2 == 0) { 
+			Eigen::Vector3f normal(point.normal_x, point.normal_y, point.normal_z) ;
+			orientation.setFromTwoVectors(zaxis, normal) ;
+
+			//if (std::isnan(orientation.x())) {
+				//std::cout << "Orientation " << orientation.x() << " " << orientation.y() << " " << orientation.z() << " " << orientation.w() << std::endl ;
+				//std::cout << "Normal " << normal << std::endl ;
+				//std::cout << "zaxis " << zaxis << std::endl ;
+			//}
+			//Set marker data
+			marker.id = i;
+			marker.pose.position.x = point.x ;
+			marker.pose.position.y = point.y ;
+			marker.pose.position.z = point.z ;
+			marker.pose.orientation.x = orientation.x() ;
+			marker.pose.orientation.y = orientation.y() ;
+			marker.pose.orientation.z = orientation.z() ;
+			marker.pose.orientation.w = orientation.w() ;
+
+			marker.scale.x = point.radius * 2.0 ;
+			marker.scale.y = point.radius * 2.0 ;
+			marker.scale.z = 0.0001 ;
+			marker.color.r = point.r / 255.0f ;
+			marker.color.g = point.g / 255.0f ;
+			marker.color.b = point.b / 255.0f ;
+			marray.markers.push_back(marker) ;
+		}
+	}
+	if (nmarkers < point_indices.size())
+		ROS_INFO("Number of points [%d] too large for marker publishing", (int) point_indices.size()) ;
+	ROS_INFO("Publishing: %d points ", (int) nmarkers) ;
+	
+	surfel_map_pub.publish(marray) ;
+}
 
 bool resetMapCallback(
   surfel_mapper::ResetMap::Request& request,
@@ -159,7 +231,48 @@ bool resetMapCallback(
 	ROS_INFO("ResetMap request arrived") ;	
 	mapper.resetMap() ;
 	ROS_INFO("The map has been reset") ;	
+
+	logger.initFile() ;
 	return true ;
+}
+
+bool publishMapCallback(
+  surfel_mapper::PublishMap::Request& request,
+  surfel_mapper::PublishMap::Response& response)
+{
+	Eigen::Vector3f minbb(request.x1, request.y1, request. z1) ;
+	Eigen::Vector3f maxbb(request.x2, request.y2, request. z2) ;
+
+	ROS_INFO("PublishMap request arrived for bb. [%f,%f,%f]-[%f,%f,%f]", minbb[0], minbb[1], minbb[2], maxbb[0], maxbb[1], maxbb[2]) ;	
+	sendMapMessage(surfel_map_pub, minbb, maxbb) ;	
+	ROS_INFO("The map has been sent") ;	
+	return true ;
+}
+
+
+void initLogger()
+{
+	logger.turnLoggingOn(true) ;
+	logger.addField("normal_computation_time") ;
+	logger.addField("normal_filtering_time") ;
+	logger.addField("keyframe_transformation_time") ;
+	logger.addField("scope_filtering_time") ;
+	logger.addField("surfel_update_time") ;
+	logger.addField("surfel_addition_time") ;
+	logger.addField("cloud_scene_width") ;
+	logger.addField("cloud_scene_actual_size") ;
+	logger.addField("ntotal_scans") ;
+	logger.addField("nscans_covered") ;
+	logger.addField("nsurfels_inside_frustum") ;
+	logger.addField("nsurfels_projected_on_sensor") ;
+	logger.addField("octree_nodes_visited") ;
+	logger.addField("surfels_updated") ;
+	logger.addField("scans_too_far") ;
+	logger.addField("scans_too_close") ;
+	logger.addField("surfels_removed_on_update") ;
+	logger.addField("surfels_added") ;
+
+	logger.initFile() ;
 }
 
 int main(int argc, char **argv)
@@ -168,21 +281,23 @@ int main(int argc, char **argv)
 	ros::NodeHandle n;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
-	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 5, keyframeCallback);
+	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 20, keyframeCallback);
 
-	ros::Publisher map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
+	ros::Publisher downsampled_map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
+	surfel_map_pub = n.advertise<visualization_msgs::MarkerArray>( "surfelmap", 1);
 
-	ros::ServiceServer service = n.advertiseService("reset_map", resetMapCallback);
+	ros::ServiceServer resetmap_service = n.advertiseService("reset_map", resetMapCallback);
+	ros::ServiceServer publishmap_service = n.advertiseService("publish_map", publishMapCallback);
 
 	ros::Rate r(2) ;
 
+	initLogger() ;
 
 	//testOctreeIterator() ;
 
-
 	tf::TransformListener listener ;
 
-	while(ros::ok()) {
+	/*while(ros::ok()) {
 		ROS_INFO("Waiting for camera_link->camera_rgb_optical_frame transform") ;
 		tf::StampedTransform transform;
 		try {
@@ -200,7 +315,7 @@ int main(int argc, char **argv)
 			ROS_ERROR("%s",ex.what());
 			r.sleep() ;
 		}
-	}
+	}*/
 
 
 	ros::Time time_stamp, time_stamp_rounded ;
@@ -217,7 +332,7 @@ int main(int argc, char **argv)
 		ros::spinOnce();
 		processCloudMsgQueue() ;
 		ros::Time start = ros::Time::now() ;
-		sendMapMessage(map_pub) ;
+		sendDownsampledMapMessage(downsampled_map_pub) ;
 		ros::Time stop = ros::Time::now() ;
 		ROS_DEBUG("Sending Map Message time (s): [%.6lf]", (stop - start).toSec()) ;
 		r.sleep() ;

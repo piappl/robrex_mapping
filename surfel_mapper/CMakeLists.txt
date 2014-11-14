@@ -61,6 +61,7 @@ find_package(PCL 1.7 REQUIRED)
 add_service_files(
   FILES
   ResetMap.srv
+  PublishMap.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -106,7 +107,7 @@ include_directories(
 )
 include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${PCL_INCLUDE_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+add_definitions(${PCL_DEFINITIONS} -std=c++11)
 
 ## Declare a cpp library
 # add_library(surfel_mapper
@@ -114,11 +115,11 @@ add_definitions(${PCL_DEFINITIONS})
 # )
 
 ## Declare a cpp executable
-add_executable(surfel_mapper src/surfel_mapper_node.cpp src/surfel_mapper.cpp)
+add_executable(surfel_mapper src/surfel_mapper_node.cpp src/surfel_mapper.cpp src/logger.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(surfel_mapper_node surfel_mapper_generate_messages_cpp)
+add_dependencies(surfel_mapper surfel_mapper_generate_messages_cpp)
 
 link_directories(${PCL_LIBRARY_DIRS})
 

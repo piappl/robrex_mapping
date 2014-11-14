@@ -15,7 +15,7 @@ class SurfelMapper {
 		pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene ;
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled ;
 
-		pcl::octree::OctreePointCloudPointVector<PointCustomSurfel> octree ;
+		pcl::octree::OctreePointCloudSearch<PointCustomSurfel> octree ;
 
 		static inline void transformPointAffine(PointCustomSurfel &point_in, PointCustomSurfel &point_out, Eigen::Matrix4d transform) ;
 
@@ -32,7 +32,7 @@ class SurfelMapper {
 		/**
 		 * Gets interpolated point at specified (not necesserily integer) position in organized cloud
 		 */
-		static void getPointAtPosition(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr &cloud, float u, float v, pcl::PointXYZRGBNormal &point) ;
+		static void getPointAtPosition(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr &cloud, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr &cloud_trans, float u, float v, pcl::PointXYZRGBNormal &point, pcl::PointXYZRGBNormal &point_trans) ;
 
 		static void markScanAsCovered(char scan_covered[CLOUD_HEIGHT][CLOUD_WIDTH], float u, float v) ;
 
@@ -57,6 +57,8 @@ class SurfelMapper {
 		size_t getPointCount() ;
 
 		void resetMap() ;
+
+		void getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Eigen::Vector3f &max_pt, std::vector<int> &k_indices) ;
 } ;
 
 #endif

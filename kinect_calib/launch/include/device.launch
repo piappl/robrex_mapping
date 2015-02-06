@@ -1,4 +1,4 @@
-<!-- Launch the OpenNI device driver (after ccny_rgbd)-->
+<!-- Launch the Freenect device driver (after ccny_rgbd)-->
 <launch> 
          
   <arg name="manager_name" />      
@@ -15,8 +15,8 @@
   <arg name="rgb_camera_info_url"   value="file://$(arg calib_path)/rgb.yml"/>
   <arg name="depth_camera_info_url" value="file://$(arg calib_path)/depth.yml"/>
      
-  <node pkg="nodelet" type="nodelet" name="openni_driver" 
-        args="load openni_camera/driver $(arg manager_name)" output="screen">
+  <node pkg="nodelet" type="nodelet" name="freenect_driver" 
+        args="load freenect_camera/driver $(arg manager_name)" output="screen">
         
     <param name="device_id"             value="#1" />
     <param name="rgb_camera_info_url"   value="$(arg rgb_camera_info_url)" />
@@ -24,8 +24,9 @@
     <param name="rgb_frame_id"          value="camera_rgb_optical_frame" />
     <param name="depth_frame_id"        value="camera_depth_optical_frame" />
 
-    <param name="image_mode"         value="$(arg image_mode)" />
-    <param name="depth_mode"         value="$(arg depth_mode)" />
+    #<param name="image_mode"         value="$(arg image_mode)" />
+    #<param name="depth_mode"         value="$(arg depth_mode)" />
+    <param name="depth_registration"  value="False" />
 
     <remap from="ir"    to="camera/ir" />
     <remap from="rgb"   to="camera/rgb" />

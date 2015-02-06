@@ -1,7 +1,0 @@
-<launch>
-  <include file="$(find openni_launch)/launch/openni.launch">
-    <arg name="rgb_camera_info_url" value="file://$(find kinect_calib)/../../data/kinect_calib/calibration/rgb.yml" />
-    <arg name="depth_camera_info_url" value="file://$(find kinect_calib)/../../data/kinect_calib/calibration/depth.yml" />
-    <arg name="publish_tf" default="false" />
-  </include>
-</launch>

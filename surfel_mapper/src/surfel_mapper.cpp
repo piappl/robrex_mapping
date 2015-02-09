@@ -277,8 +277,8 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	//std::cout <<  viewMatrix ;
 	//std::cout << std::endl ;
 	//std::cout.flush() ;
-	//viewMatrix = viewMatrix.inverse() * cameraRgbToCameraLinkTrans ;
-	viewMatrix = viewMatrix.inverse() ;
+	//viewMatrix = viewMatrix.inverse().eval() * cameraRgbToCameraLinkTrans ;
+	viewMatrix = viewMatrix.inverse().eval() ;
 
 
 	//Compute normals for the input cloud
@@ -522,7 +522,7 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	pcl::copyPointCloud(*cloud, *cloudTemp) ;
 	*/
 
-	Eigen::Matrix4d viewMatrixInv = viewMatrix.inverse() ;
+	Eigen::Matrix4d viewMatrixInv = viewMatrix.inverse().eval() ;
 
 	unsigned int surfels_added = 0 ;
 	double distance  = 0.0 ;

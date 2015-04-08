@@ -1,4 +1,4 @@
-<!-- Launch surfel mapper-->
+<!-- Launch visual odometry-->
 <launch> 
 	<!--<node pkg="tf" type="static_transform_publisher" name="camera_depth_optical_frame_tf"
 	args="0 0 0 0 0 0 1  /camera_link /camera_depth_optical_frame 40" />-->        

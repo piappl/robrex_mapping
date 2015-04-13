@@ -1,0 +1,34 @@
+<launch>
+  <arg name="path" default="." /> 
+  <arg name="calib_path" default="$(find kinect_calib)/../../../data/dataset" />
+  <arg name="rate" default="0.05" />
+  
+  <arg name="ir_topic" default="/camera/depth_registered/image_rect_raw" />
+  <arg name="color_topic" default="/camera/rgb/image_rect_color" />
+  <arg name="camera_info_topic" default="/camera/rgb/camera_info" />
+  
+  <arg name="depth_frame_id" default="camera_depth_optical_frame" />
+  <arg name="rgb_frame_id" default="camera_rgb_optical_frame" />
+
+
+
+  <node name="seq_pub" pkg="img_tools" type="sequence_publisher.py" output="screen">
+    <param name="path" value="$(arg path)" />
+    <param name="rate" value="$(arg rate)" />
+    <param name="calib_path" value="$(arg calib_path)" />
+    
+    <param name="depth_frame_id" value="$(arg depth_frame_id)" />
+    <param name="rgb_frame_id" value="$(arg rgb_frame_id)" />
+
+    <remap from="image_color" to="$(arg color_topic)" />
+    <remap from="image_ir" to="$(arg ir_topic)" />
+    <remap from="camera_info" to="$(arg camera_info_topic)" />
+  </node>
+  
+  <!-- Publish transformation between rgb and depth -->
+  <node name="publish_transform" pkg="kinect_calib" type="publish_transform.py" output="screen">       
+     <param name="depth_optical_frame_name" value="$(arg depth_frame_id)" />
+     <param name="rgb_optical_frame_name" value="$(arg rgb_frame_id)" />
+     <param name="transform_file" value="$(arg calib_path)/trans.yml" />
+  </node>
+</launch>

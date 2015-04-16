@@ -16,6 +16,18 @@
 #include <math.h>
 #include "logger.hpp"
 
+//Node parameters
+double dmax ; 
+double min_kinect_dist ; 
+double max_kinect_dist ; 
+double octree_resolution ;
+double preview_resolution ;
+int preview_color_samples_in_voxel ; 
+int confidence_threshold ;
+double min_scan_znormal ;
+bool use_frustum ;
+int scene_size ;
+
 struct SensorPose {
 	public:
 		Eigen::Quaternionf orientation ;
@@ -29,8 +41,7 @@ nav_msgs::Path::ConstPtr current_path ;
 PointCloudMsgListT cloudMsgQueue ;
 
 //Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
-
-SurfelMapper mapper ;
+boost::shared_ptr<SurfelMapper> mapper ;
 
 ros::Publisher surfel_map_pub ;
 
@@ -103,7 +114,6 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 	}
 }
 
-
 void processCloudMsgQueue()
 {
 	//Try to associate clouds from the queue with appropriate transforms and process them
@@ -127,7 +137,7 @@ void processCloudMsgQueue()
 			ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
 			ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
 
-			mapper.addPointCloudToScene(cloud) ;
+			mapper->addPointCloudToScene(cloud) ;
 			//addPointCloudToScene1(cloud) ;
 
 			//Remove message from queue
@@ -152,7 +162,7 @@ void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 
 void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub) 
 {
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = mapper.getCloudSceneDownsampled() ;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = mapper->getCloudSceneDownsampled() ;
 
 	pcl::PCLPointCloud2 pcl_pc2;
 	pcl::toPCLPointCloud2(*cloudSceneDownsampled, pcl_pc2) ;
@@ -164,9 +174,9 @@ void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub)
 
 void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vector3f &max_bb) 
 {
-	pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene = mapper.getCloudScene() ;
+	pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene = mapper->getCloudScene() ;
 	std::vector<int> point_indices ;
-	mapper.getBoundingBoxIndices(min_bb, max_bb, point_indices) ;
+	mapper->getBoundingBoxIndices(min_bb, max_bb, point_indices) ;
 	
 	//When iterating through point cloud - we encounter also NaN surfels: 
 	//TODO: might be better to iterate the original tree or remove NaNs from the cloud before sending
@@ -229,7 +239,7 @@ bool resetMapCallback(
   surfel_mapper::ResetMap::Response& response)
 {
 	ROS_INFO("ResetMap request arrived") ;	
-	mapper.resetMap() ;
+	mapper->resetMap() ;
 	ROS_INFO("The map has been reset") ;	
 
 	logger.initFile() ;
@@ -271,6 +281,7 @@ void initLogger()
 	logger.addField("scans_too_close") ;
 	logger.addField("surfels_removed_on_update") ;
 	logger.addField("surfels_added") ;
+	logger.addField("cloud_scene_actual_size_after") ;
 
 	logger.initFile() ;
 }
@@ -278,7 +289,25 @@ void initLogger()
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "surfel_mapper");
-	ros::NodeHandle n;
+	ros::NodeHandle n ;
+	ros::NodeHandle np("~") ;
+
+	//Parse parameters
+	if (!np.getParam("dmax", dmax)) dmax = 0.005f ;
+	if (!np.getParam("min_kinect_dist", min_kinect_dist)) min_kinect_dist = 0.8 ;
+	if (!np.getParam("max_kinect_dist", max_kinect_dist))  max_kinect_dist = 4.0 ;
+	if (!np.getParam("octree_resolution", octree_resolution)) octree_resolution = 0.2 ;
+	if (!np.getParam("preview_resolution", preview_resolution)) preview_resolution= 0.2 ;
+	if (!np.getParam("preview_color_samples_in_voxel", preview_color_samples_in_voxel)) preview_color_samples_in_voxel = 3 ;
+	if (!np.getParam("confidence_threshold", confidence_threshold)) confidence_threshold = 5 ;
+	if (!np.getParam("min_scan_znormal", min_scan_znormal)) min_scan_znormal = 0.2f ;
+	if (!np.getParam("use_frustum", use_frustum)) use_frustum = true ;
+	if (!np.getParam("scene_size", scene_size)) scene_size = 3e7 ;
+
+	mapper.reset(new SurfelMapper(dmax, min_kinect_dist, max_kinect_dist, octree_resolution,
+					preview_resolution, preview_color_samples_in_voxel,
+					confidence_threshold, min_scan_znormal, 
+					use_frustum, scene_size)) ;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 20, keyframeCallback);

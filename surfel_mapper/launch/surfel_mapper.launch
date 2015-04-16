@@ -1,0 +1,27 @@
+<!-- Launch surfel mapper-->
+<launch> 
+	<arg name="dmax" default="0.05" /> 
+	<arg name="min_kinect_dist" default="0.8" />
+	<arg name="max_kinect_dist" default="4.0" />
+	<arg name="octree_resolution" default="0.2" />
+	<arg name="preview_resolution" default="0.2" />
+	<arg name="preview_color_samples_in_voxel" default="3" />
+	<arg name="confidence_threshold" default="5" />
+	<arg name="min_scan_znormal" default="0.2" />
+	<arg name="use_frustum" default="true" />
+	<arg name="scene_size" default="30000000" />
+
+	<!--Surfel Mapper-->
+	<node pkg="surfel_mapper" type="surfel_mapper" name="surfel_mapper" output="screen">
+		<param name="dmax" value="$(arg dmax)" />
+		<param name="min_kinect_dist" value="$(arg min_kinect_dist)" />
+		<param name="max_kinect_dist" value="$(arg max_kinect_dist)" />
+		<param name="octree_resolution" value="$(arg octree_resolution)" />
+		<param name="preview_resolution" value="$(arg preview_resolution)" />
+		<param name="preview_color_samples_in_voxel" value="$(arg preview_color_samples_in_voxel)" />
+		<param name="confidence_threshold" value="$(arg confidence_threshold)" />
+		<param name="min_scan_znormal" value="$(arg min_scan_znormal)" />
+		<param name="use_frustum" value="$(arg use_frustum)" />
+		<param name="scene_size" value="$(arg scene_size)" />
+	</node>
+</launch>

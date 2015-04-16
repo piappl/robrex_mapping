@@ -3,6 +3,7 @@
 
 #include "logger.hpp"
 #include <fstream>
+#include <iostream>
 
 #define SEPARATOR ";"
 #define NA_VALUE "n/a"
@@ -44,11 +45,11 @@ void Logger::initFile()
 	if (loggingOn) {
 		std::fstream myfile;
 		myfile.open (fileName.c_str(), std::fstream::in) ;
-		if (!myfile.is_open()) 
+		if (!myfile.is_open()) {
 			logHeader() ; //if there is no such file - create one with header
-		else 
+			nextRow() ;
+		} else 
 			myfile.close() ;
-		nextRow() ;
 	}
 }
 

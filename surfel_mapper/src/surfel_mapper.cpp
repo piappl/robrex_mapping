@@ -6,15 +6,15 @@
 #include <pcl/features/integral_image_normal.h>
 #include "logger.hpp"
 
-#define DMAX 0.005f
-#define MIN_KINECT_DIST 0.8 
-#define MAX_KINECT_DIST 4.0
-#define OCTREE_RESOLUTION 0.2 
-//#define OCTREE_RESOLUTION 500.0 
-#define PREVIEW_RESOLUTION 0.2
-#define PREVIEW_COLOR_SAMPLES_IN_VOXEL 3
-#define CONFIDENCE_THRESHOLD1 5
-#define MIN_SCAN_ZNORMAL 0.2f
+//#define DMAX 0.005f
+//#define MIN_KINECT_DIST 0.8 
+//#define MAX_KINECT_DIST 4.0
+//#define OCTREE_RESOLUTION 0.2 
+////#define OCTREE_RESOLUTION 500.0 
+//#define PREVIEW_RESOLUTION 0.2
+//#define PREVIEW_COLOR_SAMPLES_IN_VOXEL 3
+//#define CONFIDENCE_THRESHOLD1 5
+//#define MIN_SCAN_ZNORMAL 0.2f
 
 extern Logger logger ;
 
@@ -239,9 +239,51 @@ void SurfelMapper::downsampleSceneCloud()
 
 }
 
-SurfelMapper::SurfelMapper(): cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(OCTREE_RESOLUTION)
+void SurfelMapper::printSettings()
 {
-	//octree.defineBoundingBox(-100,-100,-100, 400, 400, 400) ;	
+	std::cout << "SurfelMapper current settings:" << std::endl ;	
+	std::cout << "DMAX = " << DMAX << "\n" ;
+	std::cout << "MIN_KINECT_DIST = " << MIN_KINECT_DIST << std::endl ; 
+	std::cout << "MAX_KINECT_DIST = " << MAX_KINECT_DIST << std::endl ; 
+	std::cout << "OCTREE_RESOLUTION = " << OCTREE_RESOLUTION << std::endl ;
+	std::cout << "PREVIEW_RESOLUTION = " << PREVIEW_RESOLUTION << std::endl ;
+	std::cout << "PREVIEW_COLOR_SAMPLES_IN_VOXEL = " << PREVIEW_COLOR_SAMPLES_IN_VOXEL << std::endl ;
+	std::cout << "CONFIDENCE_THRESHOLD1 = " << CONFIDENCE_THRESHOLD1 << std::endl ;
+	std::cout << "MIN_SCAN_ZNORMAL = " << MIN_SCAN_ZNORMAL << std::endl ;
+	std::cout << "USE_FRUSTUM = " << USE_FRUSTUM << std::endl ;
+	std::cout << "SCENE_SIZE = " << SCENE_SIZE << std::endl ;
+}
+
+SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
+			   double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
+			   bool USE_FRUSTUM, int SCENE_SIZE): 
+				cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
+{
+	this->DMAX  = DMAX ;
+	this->MIN_KINECT_DIST  = MIN_KINECT_DIST ;
+	this->MAX_KINECT_DIST = MAX_KINECT_DIST ;
+	this->OCTREE_RESOLUTION = OCTREE_RESOLUTION ;
+	this->PREVIEW_RESOLUTION = PREVIEW_RESOLUTION ;
+	this->PREVIEW_COLOR_SAMPLES_IN_VOXEL = PREVIEW_COLOR_SAMPLES_IN_VOXEL ;
+	this->CONFIDENCE_THRESHOLD1 = CONFIDENCE_THRESHOLD1 ;
+	this->MIN_SCAN_ZNORMAL = MIN_SCAN_ZNORMAL ;
+	this->USE_FRUSTUM = USE_FRUSTUM ;
+	this->SCENE_SIZE = SCENE_SIZE ;
+
+	printSettings() ;
+
+	cloudScene->reserve(this->SCENE_SIZE) ;
+	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
+	//octree.defineBoundingBox(-100,-100,-100, 100, 100, 100) ;	
+	octree.setInputCloud(cloudScene) ;
+}
+
+SurfelMapper::SurfelMapper(): cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
+{
+	printSettings() ;
+
+	cloudScene->reserve(this->SCENE_SIZE) ;
+	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
 	octree.setInputCloud(cloudScene) ;
 }
 
@@ -375,6 +417,7 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	unsigned int nsurfels_invalid_reading = 0 ;
 	unsigned int nsurfels_removed = 0 ;
 	unsigned int ntotal_scans = 0 ;
+	int ncorrect_surfels = getPointCount() ;
 
 	timer.reset() ;
 	/*float umin = 1e6 ;
@@ -389,6 +432,7 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	while(it != it_end) {
 		octree_nodes_visited++ ;
 		unsigned int current_depth = it.getCurrentOctreeDepth() ;
+		//std::cout << "Current depth: " << current_depth << std::endl ;
 
 		//Cancel acceptBelowDepth if we went above a child branch that is completely in a frustum
 		if (current_depth <= acceptBelowDepth)
@@ -401,7 +445,10 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 		else {
 			Eigen::Vector3f min_bb, max_bb ;
 			octree.getVoxelBounds(it, min_bb, max_bb) ;	
-			frustum_result = pcl::visualization::cullFrustum(frustum, min_bb.cast<double>(), max_bb.cast<double>()) ; 
+			if (!USE_FRUSTUM)
+				frustum_result = pcl::visualization::PCL_INSIDE_FRUSTUM ; //If we don't want frustum calling - let denote any voxel as belonging to frustum (accept everything)
+			else 
+				frustum_result = pcl::visualization::cullFrustum(frustum, min_bb.cast<double>(), max_bb.cast<double>()) ; 
 			if (frustum_result == pcl::visualization::PCL_INSIDE_FRUSTUM)
 				acceptBelowDepth = it.getCurrentOctreeDepth() ; //We may mark that all nodes below will be automatically accepted
 		}
@@ -568,7 +615,6 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 
 	std::cout << "cloud_scene size (all surfels including removed): [" << cloudScene->width << "]" << std::endl ;
 	logger.log("cloud_scene_width", cloudScene->width) ;
-	int ncorrect_surfels = getPointCount() ;
 	std::cout << "Actual scene size (without removed surfels) [" << ncorrect_surfels << "]" <<  std::endl ;
 	logger.log("cloud_scene_actual_size", ncorrect_surfels) ;
 	std::cout << "Correct scans [" << ncorrect_scans << "]" << std::endl ;
@@ -597,13 +643,19 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	logger.log("surfels_removed_on_update", nsurfels_removed) ;
 	std::cout << "Surfels added [" << surfels_added << "]" << std::endl ;
 	logger.log("surfels_added", surfels_added) ;
+	int ncorrect_surfels_after = getPointCount() ;
+	std::cout << "cloud_scene size after update and addition (without removed surfels): [" << ncorrect_surfels_after << "]" << std::endl ;
+	logger.log("cloud_scene_actual_size_after", ncorrect_surfels_after) ;
+	logger.nextRow() ;
+
 
 	//Now downsample scene cloud
 	timer.reset() ;	
 	downsampleSceneCloud() ;
 	std::cout << "Cloud downsampling time(s): [" << timer.getTimeSeconds() << "]" << std::endl ;
 
-	logger.nextRow() ;
+
+	//std::cout << "Octree depth: [" << octree.getTreeDepth() << "]" << std::endl ;
 }
 
 pcl::PointCloud<PointCustomSurfel>::Ptr &SurfelMapper::getCloudScene()

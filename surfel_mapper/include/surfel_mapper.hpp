@@ -10,6 +10,17 @@
 
 class SurfelMapper {
 	protected:
+		//Parameters
+		double DMAX  = 0.005f ;
+		double MIN_KINECT_DIST  = 0.8 ;
+		double MAX_KINECT_DIST = 4.0 ;
+		double OCTREE_RESOLUTION = 0.2 ;
+		double PREVIEW_RESOLUTION = 0.2 ;
+		int PREVIEW_COLOR_SAMPLES_IN_VOXEL = 3 ;
+		int CONFIDENCE_THRESHOLD1 = 5 ;
+		double MIN_SCAN_ZNORMAL = 0.2f ;
+		bool USE_FRUSTUM = true ;
+		int SCENE_SIZE = 3e7 ;
 
 		//Let us define our main scene cloud (will contain surfels soon...)
 		pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene ;
@@ -41,12 +52,17 @@ class SurfelMapper {
 
 		void computeVoxelColor(pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it, const pcl::octree::OctreePointCloud<pcl::PointXYZRGB>::DepthFirstIterator &it_end, pcl::PointXYZRGB &point) ;
 
-		static void filterCloudByDistance(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr &cloud) ;
+		void filterCloudByDistance(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr &cloud) ;
 
 		void downsampleSceneCloud() ;
 
+		void printSettings() ;
+
 
 	public:
+		SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
+		  	     double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
+			     bool USE_FRUSTUM, int SCENE_SIZE) ;
 		SurfelMapper() ;
 		~SurfelMapper() ;
 		void addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) ;

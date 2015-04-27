@@ -310,7 +310,7 @@ int main(int argc, char **argv)
 					use_frustum, scene_size)) ;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
-	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 20, keyframeCallback);
+	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 200, keyframeCallback);
 
 	ros::Publisher downsampled_map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
 	surfel_map_pub = n.advertise<visualization_msgs::MarkerArray>( "surfelmap", 1);

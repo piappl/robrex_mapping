@@ -691,10 +691,13 @@ size_t SurfelMapper::getPointCount()
 void SurfelMapper::resetMap()
 {
 	cloudScene = pcl::PointCloud<PointCustomSurfel>::Ptr(new pcl::PointCloud<PointCustomSurfel>) ;
+	cloudScene->reserve(this->SCENE_SIZE) ;
+
 	cloudSceneDownsampled = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+
 	octree.deleteTree() ;
+	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
 	octree.setInputCloud(cloudScene) ;
-	
 }
 
 void SurfelMapper::getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Eigen::Vector3f &max_pt, std::vector<int> &k_indices)

@@ -37,6 +37,15 @@ Install required ROS packages
 
 	sudo apt-get install ros-indigo-freenect-launch ros-indigo-libg2o libsuitesparse-dev
 
+
+#### OpenCV 2.4 with non-free module (for SURF) ####
+
+Update opencv from PPA to the version supporting SURF 
+
+	sudo add-apt-repository --yes ppa:xqms/opencv-nonfree
+	sudo apt-get update 
+	sudo apt-get install libopencv-nonfree-dev
+
 #### Checkout and build Robrex Mapping module ####
 	cd ~/catkin_ws/src
 	git clone git@gitlab.com:awilkowski/robrex-mapping.git
@@ -66,8 +75,5 @@ Intrinsic and extrinsic Kinect camera calibration files (rgb.yml, depth.yml, tra
 
 #### Start Surfel Mapper node
 
-	rosrun surfel_mapper surfel_mapper
-
-
-	
+	roslaunch surfel_mapper surfel_mapper
 

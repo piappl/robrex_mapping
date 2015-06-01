@@ -14,7 +14,6 @@
 #include "surfel_mapper/PublishMap.h"
 #include <algorithm>
 #include <math.h>
-#include "logger.hpp"
 
 //Node parameters
 double dmax ; 
@@ -27,6 +26,7 @@ int confidence_threshold ;
 double min_scan_znormal ;
 bool use_frustum ;
 int scene_size ;
+bool logging ;
 
 struct SensorPose {
 	public:
@@ -45,7 +45,6 @@ boost::shared_ptr<SurfelMapper> mapper ;
 
 ros::Publisher surfel_map_pub ;
 
-Logger logger ;
 
 //ccny_rgbd uses timestamps for keyframes compatible with rgb camera, but odometry path is time stamped anew (so it can be actually some microseconds later than keyframe
 //simple workaround is to round time stamps to miliseconds.TODO: possibly some patch to ccny_rgbd could be proposed?
@@ -242,7 +241,6 @@ bool resetMapCallback(
 	mapper->resetMap() ;
 	ROS_INFO("The map has been reset") ;	
 
-	logger.initFile() ;
 	return true ;
 }
 
@@ -260,31 +258,6 @@ bool publishMapCallback(
 }
 
 
-void initLogger()
-{
-	logger.turnLoggingOn(true) ;
-	logger.addField("normal_computation_time") ;
-	logger.addField("normal_filtering_time") ;
-	logger.addField("keyframe_transformation_time") ;
-	logger.addField("scope_filtering_time") ;
-	logger.addField("surfel_update_time") ;
-	logger.addField("surfel_addition_time") ;
-	logger.addField("cloud_scene_width") ;
-	logger.addField("cloud_scene_actual_size") ;
-	logger.addField("ntotal_scans") ;
-	logger.addField("nscans_covered") ;
-	logger.addField("nsurfels_inside_frustum") ;
-	logger.addField("nsurfels_projected_on_sensor") ;
-	logger.addField("octree_nodes_visited") ;
-	logger.addField("surfels_updated") ;
-	logger.addField("scans_too_far") ;
-	logger.addField("scans_too_close") ;
-	logger.addField("surfels_removed_on_update") ;
-	logger.addField("surfels_added") ;
-	logger.addField("cloud_scene_actual_size_after") ;
-
-	logger.initFile() ;
-}
 
 int main(int argc, char **argv)
 {
@@ -303,11 +276,12 @@ int main(int argc, char **argv)
 	if (!np.getParam("min_scan_znormal", min_scan_znormal)) min_scan_znormal = 0.2f ;
 	if (!np.getParam("use_frustum", use_frustum)) use_frustum = true ;
 	if (!np.getParam("scene_size", scene_size)) scene_size = 3e7 ;
+	if (!np.getParam("logging", logging)) logging = true ;
 
 	mapper.reset(new SurfelMapper(dmax, min_kinect_dist, max_kinect_dist, octree_resolution,
 					preview_resolution, preview_color_samples_in_voxel,
 					confidence_threshold, min_scan_znormal, 
-					use_frustum, scene_size)) ;
+					use_frustum, scene_size, logging)) ;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 200, keyframeCallback);
@@ -319,8 +293,6 @@ int main(int argc, char **argv)
 	ros::ServiceServer publishmap_service = n.advertiseService("publish_map", publishMapCallback);
 
 	ros::Rate r(2) ;
-
-	initLogger() ;
 
 	//testOctreeIterator() ;
 

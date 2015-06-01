@@ -252,11 +252,39 @@ void SurfelMapper::printSettings()
 	std::cout << "MIN_SCAN_ZNORMAL = " << MIN_SCAN_ZNORMAL << std::endl ;
 	std::cout << "USE_FRUSTUM = " << USE_FRUSTUM << std::endl ;
 	std::cout << "SCENE_SIZE = " << SCENE_SIZE << std::endl ;
+	std::cout << "LOGGING = " << LOGGING << std::endl ;
 }
+
+void SurfelMapper::initLogger() 
+{
+	logger.turnLoggingOn(LOGGING) ;
+	logger.addField("normal_computation_time") ;
+	logger.addField("normal_filtering_time") ;
+	logger.addField("keyframe_transformation_time") ;
+	logger.addField("scope_filtering_time") ;
+	logger.addField("surfel_update_time") ;
+	logger.addField("surfel_addition_time") ;
+	logger.addField("cloud_scene_width") ;
+	logger.addField("cloud_scene_actual_size") ;
+	logger.addField("ntotal_scans") ;
+	logger.addField("nscans_covered") ;
+	logger.addField("nsurfels_inside_frustum") ;
+	logger.addField("nsurfels_projected_on_sensor") ;
+	logger.addField("octree_nodes_visited") ;
+	logger.addField("surfels_updated") ;
+	logger.addField("scans_too_far") ;
+	logger.addField("scans_too_close") ;
+	logger.addField("surfels_removed_on_update") ;
+	logger.addField("surfels_added") ;
+	logger.addField("cloud_scene_actual_size_after") ;
+
+	logger.initFile() ;
+}
+
 
 SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 			   double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			   bool USE_FRUSTUM, int SCENE_SIZE): 
+			   bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING): 
 				cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
 {
 	this->DMAX  = DMAX ;
@@ -269,6 +297,7 @@ SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINEC
 	this->MIN_SCAN_ZNORMAL = MIN_SCAN_ZNORMAL ;
 	this->USE_FRUSTUM = USE_FRUSTUM ;
 	this->SCENE_SIZE = SCENE_SIZE ;
+	this->LOGGING = LOGGING ;
 
 	printSettings() ;
 
@@ -276,6 +305,8 @@ SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINEC
 	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
 	//octree.defineBoundingBox(-100,-100,-100, 100, 100, 100) ;	
 	octree.setInputCloud(cloudScene) ;
+
+	initLogger() ;
 }
 
 SurfelMapper::SurfelMapper(): cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
@@ -285,6 +316,8 @@ SurfelMapper::SurfelMapper(): cloudScene(new pcl::PointCloud<PointCustomSurfel>)
 	cloudScene->reserve(this->SCENE_SIZE) ;
 	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
 	octree.setInputCloud(cloudScene) ;
+
+	initLogger() ;
 }
 
 SurfelMapper::~SurfelMapper()
@@ -698,6 +731,8 @@ void SurfelMapper::resetMap()
 	octree.deleteTree() ;
 	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
 	octree.setInputCloud(cloudScene) ;
+
+	initLogger() ;
 }
 
 void SurfelMapper::getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Eigen::Vector3f &max_pt, std::vector<int> &k_indices)

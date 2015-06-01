@@ -4,12 +4,16 @@
 #include "point_custom_surfel.hpp"
 #include <pcl/common/common_headers.h>
 #include <pcl/octree/octree.h>
+#include "logger.hpp"
 
 #define CLOUD_WIDTH 640
 #define CLOUD_HEIGHT 480
 
 class SurfelMapper {
 	protected:
+		//Logger
+		Logger logger ;
+
 		//Parameters
 		double DMAX  = 0.005f ;
 		double MIN_KINECT_DIST  = 0.8 ;
@@ -21,6 +25,7 @@ class SurfelMapper {
 		double MIN_SCAN_ZNORMAL = 0.2f ;
 		bool USE_FRUSTUM = true ;
 		int SCENE_SIZE = 3e7 ;
+		bool LOGGING = true ;
 
 		//Let us define our main scene cloud (will contain surfels soon...)
 		pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene ;
@@ -58,11 +63,12 @@ class SurfelMapper {
 
 		void printSettings() ;
 
+		void initLogger() ;
 
 	public:
 		SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 		  	     double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			     bool USE_FRUSTUM, int SCENE_SIZE) ;
+			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING) ;
 		SurfelMapper() ;
 		~SurfelMapper() ;
 		void addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) ;

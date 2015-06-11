@@ -19,3 +19,6 @@ link_directories(${PCL_LIBRARY_DIRS})
 target_link_libraries(surfelmapper
    ${PCL_LIBRARIES}
 )
+
+add_executable(surfelmappertest src/surfel_mapper_test.cpp)
+target_link_libraries(surfelmappertest surfelmapper)

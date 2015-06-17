@@ -9,6 +9,14 @@
 #define CLOUD_WIDTH 640
 #define CLOUD_HEIGHT 480
 
+/**
+* \brief This is the main class rempresenting surfel map  
+*
+* This class enables to create surfel maps basing on the data from RGBD sensor. Input is formed by RGBD frames
+* with sensor orientation specified. The frames are sequentially integrated into the surfel map. The output
+* is either the full surfel cloud or downsampled preview cloud. The class use octree coupled with frustum
+* for efficient map update.
+*/
 class SurfelMapper {
 	protected:
 		//Logger
@@ -66,20 +74,79 @@ class SurfelMapper {
 		void initLogger() ;
 
 	public:
+		/**
+		 * \brief A parametric constructor
+		 * Constructs the SurfelMapper object
+		 * @param DMAX distance threshold for surfel update
+		 * @param MIN_KINECT_DIST reliable minimum sensor reading distance
+		 * @param MAX_KINECT_DIST reliable maximum sensor reading distance
+		 * @param OCTREE_RESOLUTION resolution of underlying octree
+		 * @param PREVIEW_RESOLUTION resolution of output preview map
+		 * @param PREVIEW_COLOR_SAMPLES_IN_VOXEL number of samples in voxel used for constructing preview point (affects preview efficiency)
+		 * @param CONFIDENCE_THRESHOLD1 confidence threshold used for used for establishing reliable surfels
+		 * @param MIN_SCAN_ZNORMAL acceptable minimum z-component of scan normal
+		 * @param USE_FRUSTUM use frustum or no
+		 * @param SCENE_SIZE preallocated size of scene
+		 * @param LOGGING logging turned on or off
+		 */
 		SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 		  	     double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
 			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING) ;
+		/**
+		 * \brief A non-parametric constructor
+		 * Constructs the SurfelMapper object with default parameters
+		 */
 		SurfelMapper() ;
+		
+		/**
+		 * \brief A destructor 
+		 * Finishes the life of the SurfelMapper object 
+		 */
 		~SurfelMapper() ;
+
+		/**
+		 * \brief Add new point cloud to scene 
+		 * Add new point cloud to scene. Input cloud is expected to provide sensor orientation and be transformed to the world frame according to the orientation
+		 * @param cloud input RGBD cloud 
+		 */
 		void addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) ;
 
+		/**
+		 * \brief Retrieves scene cloud 
+		 * Retrieves scene cloud
+		 * @return the current surfel point cloud 
+		 */
 		pcl::PointCloud<PointCustomSurfel>::Ptr &getCloudScene() ;
+
+		/**
+		 * \brief Retrieves downsample scene cloud 
+		 * Retrieves downsampled scene cloud
+		 * @return the scene cloud downsampled according to the parameters specified 
+		 */
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr &getCloudSceneDownsampled() ;
 
+		/**
+		 * \brief Retrieves current number of surfels in the scene cloud 
+		 * Retrieves current number of surfels in the scene cloud 
+		 * @return number of points in the scene cloud 
+		 */
 		size_t getPointCount() ;
 
+		/**
+		 * \brief Resets map 
+		 * The scene is reset to the blank state (integration of incoming readings is started anew) 
+		 */
 		void resetMap() ;
 
+
+		/**
+		 * \brief Gets indices for the points from the bounding box 
+		 * Gets indices for the points from the bounding box. The indices refer to the cloud that can be retrieved (at the same time) using
+		 * SurfelMapper::getCloudScene()
+		 * @param min_pt minimum corner of the bounding box
+		 * @param max_pt maximum corner of the bounding box
+		 * @param k_indices selected indices are stored in this argument
+		 */
 		void getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Eigen::Vector3f &max_pt, std::vector<int> &k_indices) ;
 } ;
 

@@ -20,5 +20,11 @@ target_link_libraries(surfelmapper
    ${PCL_LIBRARIES}
 )
 
-add_executable(surfelmappertest src/surfel_mapper_test.cpp)
-target_link_libraries(surfelmappertest surfelmapper)
+add_subdirectory(test)
+
+# TESTING
+
+enable_testing()
+
+add_test (NAME SurfelMapperTest COMMAND surfelmappertest)
+

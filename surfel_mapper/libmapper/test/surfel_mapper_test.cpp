@@ -1,7 +1,31 @@
+#define BOOST_TEST_MODULE SurfelMapperTest 
+#include <boost/test/unit_test.hpp>
 #include "surfel_mapper.hpp"
 #include <pcl/common/transforms.h>
 
-//TODO: Convert to BOOST TESTS
+
+////////////////////////////////////////////////////////////////////////
+/* seven ways to detect and report the same error:
+int add( int i, int j ) { return i+j; }
+
+BOOST_CHECK( add( 2,2 ) == 4 );        // #1 continues on error
+
+BOOST_REQUIRE( add( 2,2 ) == 4 );      // #2 throws on error
+
+if( add( 2,2 ) != 4 )
+  BOOST_ERROR( "Ouch..." );            // #3 continues on error
+
+if( add( 2,2 ) != 4 )
+  BOOST_FAIL( "Ouch..." );             // #4 throws on error
+
+if( add( 2,2 ) != 4 ) throw "Ouch..."; // #5 throws on error
+
+BOOST_CHECK_MESSAGE( add( 2,2 ) == 4,  // #6 continues on error
+                     "add(..) result: " << add( 2,2 ) );
+
+BOOST_CHECK_EQUAL( add( 2,2 ), 4 );      // #7 continues on error*/
+////////////////////////////////////////////////////////////////////////
+
 
 void constructPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
 	// Create a simple input cloud (flat surface) 
@@ -40,9 +64,7 @@ void transformCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, pcl::PointClo
 	pcl::transformPointCloud(*cloud, *cloudTrans, viewMatrix) ;
 }
 
-
-void testAddPointCloud() {
-
+BOOST_AUTO_TEST_CASE(TestAddPointCloud) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	constructPointCloud(cloud) ;
 
@@ -53,15 +75,12 @@ void testAddPointCloud() {
 	mapper->addPointCloudToScene(cloud) ;
 
 	size_t pcount = mapper->getPointCount() ;
-	std::cout << "Point count: " << pcount << std::endl ;
-	if (pcount > 8500 && pcount < 9000)
-		std::cout << "test addPointCloud OK" << std::endl ;
-	else
-		std::cout << "testAddPointCloud FAILED (number of points outside limit 8500-9000)" << std::endl ;
+	//std::cout << "Point count: " << pcount << std::endl ;
+
+    	BOOST_CHECK(pcount > 8500 && pcount < 9000) ;
 }
 
-void testAddSingleViewpoint() {
-
+BOOST_AUTO_TEST_CASE(TestAddSingleViewpoint) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	constructPointCloud(cloud) ;
 
@@ -75,15 +94,12 @@ void testAddSingleViewpoint() {
 	mapper->addPointCloudToScene(cloud) ;
 	size_t endcount = mapper->getPointCount() ;
 
-	std::cout << "Start point count: " << startcount << ". End point count: " << endcount << std::endl ;
-	if (startcount == endcount)
-		std::cout << "testAddSingleViewpoint OK" << std::endl ;
-	else
-		std::cout << "testAddSingleViewpoint FAILED (number of surfels at the end should be the same as at the beginning)" << std::endl ;
+	//std::cout << "Start point count: " << startcount << ". End point count: " << endcount << std::endl ;
+	
+    	BOOST_CHECK(startcount == endcount) ;
 }
 
-void testAddMultipleViewpoints() {
-
+BOOST_AUTO_TEST_CASE(testAddMultipleViewpoints) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTrans ;
 
@@ -106,18 +122,16 @@ void testAddMultipleViewpoints() {
 
 	size_t endcount = mapper->getPointCount() ;
 
-	std::cout << "Start point count: " << startcount << ". End point count: " << endcount << std::endl ;
-	if (startcount * 3 == endcount)
-		std::cout << "testAddMultiplelViewpoints OK" << std::endl ;
-	else
-		std::cout << "testAddMultipleViewpoints FAILED (number of surfels at the end should 3 times the number at the beginning)" << std::endl ;
+	//std::cout << "Start point count: " << startcount << ". End point count: " << endcount << std::endl ;
+
+    	BOOST_CHECK(startcount * 3 == endcount) ;
 }
 
-int main() {
+/*int main() {
 	testAddPointCloud() ;
 	testAddSingleViewpoint() ;
 	testAddMultipleViewpoints() ;
 
 	return 0 ;
-}
+}*/
 

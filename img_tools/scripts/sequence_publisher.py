@@ -15,9 +15,9 @@ import os
 class sequence_publisher:
 
   def __init__(self):
-    self.image_ir_pub = rospy.Publisher("image_ir", Image)
-    self.image_co_pub = rospy.Publisher("image_color", Image)
-    self.camera_info_pub = rospy.Publisher("camera_info", CameraInfo)
+    self.image_ir_pub = rospy.Publisher("image_ir", Image, queue_size=10)
+    self.image_co_pub = rospy.Publisher("image_color", Image, queue_size=10)
+    self.camera_info_pub = rospy.Publisher("camera_info", CameraInfo, queue_size=10)
     
 
     self.bridge = CvBridge()
@@ -39,6 +39,7 @@ class sequence_publisher:
     self.cur_im = 0
 
     self.ci = self.parse_yaml(os.path.join(self.calibpath, "rgb.yml"))
+    self.ci.header.frame_id = self.rgb_frame
 
   def parse_yaml(self,filename):
     if filename == '':
@@ -70,16 +71,17 @@ class sequence_publisher:
     return ret
       
   def send_next_image(self):
+    if self.cur_im >= len(self.images) and self.loop:
+      self.cur_im = 0
+    
+    if self.cur_im >= len(self.images):
+        print "Finished!"
+        return False
+      
     im_ir = os.path.join(self.path,self.images[self.cur_im]['depth'])
     im_co = os.path.join(self.path,self.images[self.cur_im]['rgb'])
     self.cur_im = self.cur_im + 1
-    if self.cur_im >= len(self.images):
-      if self.loop:
-        self.cur_im = 0
-      else:
-        print "Finished!"
-        return False
-
+    
     try:
       curtime = rospy.Time.now()
 
@@ -111,11 +113,17 @@ class sequence_publisher:
 def main(args):
   rospy.init_node('sequence_publisher', anonymous=True)
   ic = sequence_publisher()
+  rospy.sleep(2) #Give some time after advertising
+  print 'Length = ' + str(len(ic.images))
   try:
     while not rospy.is_shutdown():
       if not ic.send_next_image():
         break
+      print "Sending: " + str(ic.cur_im - 1) 
       rospy.sleep(ic.rate)
+    while not rospy.is_shutdown(): #Sleep until shutdown
+	rospy.sleep(1) 
+    print "Exit!"
   except KeyboardInterrupt:
     print "Shutting down"
   cv2.destroyAllWindows()

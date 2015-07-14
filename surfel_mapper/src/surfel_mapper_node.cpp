@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "nav_msgs/Path.h"
 #include "sensor_msgs/PointCloud2.h"
+#include <sensor_msgs/CameraInfo.h>
 #include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
 #include "pcl_conversions/pcl_conversions.h"
@@ -116,33 +117,36 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 void processCloudMsgQueue()
 {
 	//Try to associate clouds from the queue with appropriate transforms and process them
-	while(!cloudMsgQueue.empty()) {
-		SensorPose sensor_pose ;
-		const sensor_msgs::PointCloud2::ConstPtr& msg = cloudMsgQueue.front() ;
-		bool res = getSensorPosition(msg->header.stamp, sensor_pose) ;
-		if (res) {
-			//Convert message to PointCloud
-			pcl::PCLPointCloud2 pcl_pc2;
-			pcl_conversions::toPCL(*msg, pcl_pc2);
-			pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
-			pcl::fromPCLPointCloud2(pcl_pc2, *cloud);
+	if (mapper) {
+		while(!cloudMsgQueue.empty()) {
+			SensorPose sensor_pose ;
+			const sensor_msgs::PointCloud2::ConstPtr& msg = cloudMsgQueue.front() ;
+			bool res = getSensorPosition(msg->header.stamp, sensor_pose) ;
+			if (res) {
+				//Convert message to PointCloud
+				pcl::PCLPointCloud2 pcl_pc2;
+				pcl_conversions::toPCL(*msg, pcl_pc2);
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+				pcl::fromPCLPointCloud2(pcl_pc2, *cloud);
 
-			//Fix sensor pose		
-			cloud->sensor_origin_ = sensor_pose.origin ;
-			cloud->sensor_orientation_ = sensor_pose.orientation ;
+				//Fix sensor pose		
+				cloud->sensor_origin_ = sensor_pose.origin ;
+				cloud->sensor_orientation_ = sensor_pose.orientation ;
 
-			//Add cloud to the map
-			ROS_INFO("-------------->Adding point cloud [%d, %d]", msg->header.stamp.sec, msg->header.stamp.nsec) ;
-			ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
-			ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
+				//Add cloud to the map
+				ROS_INFO("-------------->Adding point cloud [%d, %d]", msg->header.stamp.sec, msg->header.stamp.nsec) ;
+				ROS_INFO("Sensor position data: [%f, %f, %f, %f] ", cloud->sensor_origin_.x(), cloud->sensor_origin_.y(), cloud->sensor_origin_.z(), cloud->sensor_origin_.w()) ;
+				ROS_INFO("Sensor orientation data: [%f, %f, %f, %f] ", cloud->sensor_orientation_.x(), cloud->sensor_orientation_.y(), cloud->sensor_orientation_.z(), cloud->sensor_orientation_.w()) ;
 
-			mapper->addPointCloudToScene(cloud) ;
-			//addPointCloudToScene1(cloud) ;
+				mapper->addPointCloudToScene(cloud) ;
+				//addPointCloudToScene1(cloud) ;
 
-			//Remove message from queue
-			cloudMsgQueue.pop_front() ;	
-		} else break ;
-	}
+				//Remove message from queue
+				cloudMsgQueue.pop_front() ;	
+			} else break ;
+		}
+	} else 
+		ROS_INFO("processCloudMsgQueue: mapper not initialized") ;
 }
 
 void pathCallback(const nav_msgs::Path::ConstPtr& msg)
@@ -157,6 +161,28 @@ void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 	//Add point cloud to our local queue (the queue is needed since we must sometimes wait for a transform from a path)
 	cloudMsgQueue.push_back(msg) ;	
 	processCloudMsgQueue() ;
+}
+
+void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr &msg)
+{
+	if (!mapper) {
+
+		ROS_INFO("cameraInfoCallback: camera params message arrived [%s]", msg->header.frame_id.c_str());
+
+		CameraParams camera_params ;
+		camera_params.alpha = msg->K[0] ;
+		camera_params.beta = msg->K[4] ;
+		camera_params.cx = msg->K[2] ;
+		camera_params.cy = msg->K[5] ;
+		
+		
+		mapper.reset(new SurfelMapper(dmax, min_kinect_dist, max_kinect_dist, octree_resolution,
+						preview_resolution, preview_color_samples_in_voxel,
+						confidence_threshold, min_scan_znormal, 
+						use_frustum, scene_size, logging, camera_params)) ;
+
+		processCloudMsgQueue() ; //In case we only waited for camera_info message
+	}
 }
 
 void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub) 
@@ -238,8 +264,11 @@ bool resetMapCallback(
   surfel_mapper::ResetMap::Response& response)
 {
 	ROS_INFO("ResetMap request arrived") ;	
-	mapper->resetMap() ;
-	ROS_INFO("The map has been reset") ;	
+	if (mapper) {
+		mapper->resetMap() ;
+		ROS_INFO("The map has been reset") ;	
+	} else
+		ROS_INFO("resetMapCallback: Mapper not initialized.") ;
 
 	return true ;
 }
@@ -252,8 +281,11 @@ bool publishMapCallback(
 	Eigen::Vector3f maxbb(request.x2, request.y2, request. z2) ;
 
 	ROS_INFO("PublishMap request arrived for bb. [%f,%f,%f]-[%f,%f,%f]", minbb[0], minbb[1], minbb[2], maxbb[0], maxbb[1], maxbb[2]) ;	
-	sendMapMessage(surfel_map_pub, minbb, maxbb) ;	
-	ROS_INFO("The map has been sent") ;	
+	if (mapper) {
+		sendMapMessage(surfel_map_pub, minbb, maxbb) ;	
+		ROS_INFO("The map has been sent") ;	
+	} else
+		ROS_INFO("resetMapCallback: Mapper not initialized.") ;
 	return true ;
 }
 
@@ -278,13 +310,10 @@ int main(int argc, char **argv)
 	if (!np.getParam("scene_size", scene_size)) scene_size = 3e7 ;
 	if (!np.getParam("logging", logging)) logging = true ;
 
-	mapper.reset(new SurfelMapper(dmax, min_kinect_dist, max_kinect_dist, octree_resolution,
-					preview_resolution, preview_color_samples_in_voxel,
-					confidence_threshold, min_scan_znormal, 
-					use_frustum, scene_size, logging)) ;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 200, keyframeCallback);
+	ros::Subscriber sub_camerainfo = n.subscribe("camera/rgb/camera_info", 3, cameraInfoCallback);
 
 	ros::Publisher downsampled_map_pub = n.advertise<sensor_msgs::PointCloud2>("surfelmap_preview", 5);
 	surfel_map_pub = n.advertise<visualization_msgs::MarkerArray>( "surfelmap", 1);
@@ -332,10 +361,13 @@ int main(int argc, char **argv)
 	while(ros::ok()) {
 		ros::spinOnce();
 		processCloudMsgQueue() ;
-		ros::Time start = ros::Time::now() ;
-		sendDownsampledMapMessage(downsampled_map_pub) ;
-		ros::Time stop = ros::Time::now() ;
-		ROS_DEBUG("Sending Map Message time (s): [%.6lf]", (stop - start).toSec()) ;
+		if (mapper) {
+			ros::Time start = ros::Time::now() ;
+			sendDownsampledMapMessage(downsampled_map_pub) ;
+			ros::Time stop = ros::Time::now() ;
+			ROS_DEBUG("Sending Map Message time (s): [%.6lf]", (stop - start).toSec()) ;
+		} else 
+			ROS_INFO("Downsampled map not sent. Mapper is not initialized.") ;
 		r.sleep() ;
 
 		//ros::Time time_stamp ;

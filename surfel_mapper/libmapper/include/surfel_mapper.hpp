@@ -9,6 +9,13 @@
 #define CLOUD_WIDTH 640
 #define CLOUD_HEIGHT 480
 
+typedef struct {
+	double alpha ; //alias fx - x-focal length
+	double beta ; //alias fy - y-focal length
+	double cx ; //x coordinate of optical center
+	double cy ; //y coordinate of optical center
+} CameraParams ;
+
 /**
 * \brief This is the main class rempresenting surfel map  
 *
@@ -34,6 +41,12 @@ class SurfelMapper {
 		bool USE_FRUSTUM = true ;
 		int SCENE_SIZE = 3e7 ;
 		bool LOGGING = true ;
+		CameraParams camera_params = { //Default camera parameters
+			481.2, //alpha
+			480.0, //beta
+			319.5, //cx
+			239.5  //cy
+		};
 
 		//Let us define our main scene cloud (will contain surfels soon...)
 		pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene ;
@@ -91,7 +104,7 @@ class SurfelMapper {
 		 */
 		SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 		  	     double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING) ;
+			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, CameraParams &camera_params) ;
 		/**
 		 * \brief A non-parametric constructor
 		 * Constructs the SurfelMapper object with default parameters

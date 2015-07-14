@@ -253,6 +253,10 @@ void SurfelMapper::printSettings()
 	std::cout << "USE_FRUSTUM = " << USE_FRUSTUM << std::endl ;
 	std::cout << "SCENE_SIZE = " << SCENE_SIZE << std::endl ;
 	std::cout << "LOGGING = " << LOGGING << std::endl ;
+	std::cout << "alpha = " << camera_params.alpha << std::endl ;
+	std::cout << "beta = " << camera_params.beta << std::endl ;
+	std::cout << "cx = " << camera_params.cx << std::endl ;
+	std::cout << "cy = " << camera_params.cy << std::endl ;
 }
 
 void SurfelMapper::initLogger() 
@@ -284,7 +288,7 @@ void SurfelMapper::initLogger()
 
 SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 			   double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			   bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING): 
+			   bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, CameraParams &camera_params): 
 				cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
 {
 	this->DMAX  = DMAX ;
@@ -298,6 +302,7 @@ SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINEC
 	this->USE_FRUSTUM = USE_FRUSTUM ;
 	this->SCENE_SIZE = SCENE_SIZE ;
 	this->LOGGING = LOGGING ;
+	this->camera_params = camera_params ;
 
 	printSettings() ;
 
@@ -332,10 +337,20 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	//Testing cloud frustum
 	//testCloud(cloud) ;
 
-	double alpha = 518.930578 ; //fx
-	double cx = 323.483756 ;
-	double beta = 517.211658 ; //fy
-	double cy = 260.384697 ;
+	//double alpha = 518.930578 ; //fx
+	//double cx = 323.483756 ;
+	//double beta = 517.211658 ; //fy
+	//double cy = 260.384697 ;
+
+	double alpha = camera_params.alpha ; //fx
+	double cx = camera_params.cx ;
+	double beta = camera_params.beta ; //fy
+	double cy =  camera_params.cy ;
+
+	//std::cout << "alpha " << alpha << std::endl ;
+	//std::cout << "cx " << cx << std::endl ;
+	//std::cout << "beta " << beta << std::endl ;
+	//std::cout << "cy " << cy << std::endl ;
 
 	//double zTor = 0.25 * (1.0 / alpha + 1.0 / beta) ;
 	double zTor = 1.0/(sqrt(2.0) * (alpha + beta) / 2.0) ;

@@ -10,6 +10,8 @@
 	<arg name="min_scan_znormal" default="0.2" />
 	<arg name="use_frustum" default="true" />
 	<arg name="scene_size" default="30000000" />
+	<arg name="logging" default="true" />
+	<arg name="use_update" default="true" />
 
 	<!--Surfel Mapper-->
 	<node pkg="surfel_mapper" type="surfel_mapper" name="surfel_mapper" output="screen">
@@ -23,5 +25,7 @@
 		<param name="min_scan_znormal" value="$(arg min_scan_znormal)" />
 		<param name="use_frustum" value="$(arg use_frustum)" />
 		<param name="scene_size" value="$(arg scene_size)" />
+		<param name="logging" value="$(arg logging)" />
+		<param name="use_update" value="$(arg use_update)" />
 	</node>
 </launch>

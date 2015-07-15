@@ -41,6 +41,7 @@ class SurfelMapper {
 		bool USE_FRUSTUM = true ;
 		int SCENE_SIZE = 3e7 ;
 		bool LOGGING = true ;
+		bool USE_UPDATE = true ;
 		CameraParams camera_params = { //Default camera parameters
 			481.2, //alpha
 			480.0, //beta
@@ -101,10 +102,22 @@ class SurfelMapper {
 		 * @param USE_FRUSTUM use frustum or no
 		 * @param SCENE_SIZE preallocated size of scene
 		 * @param LOGGING logging turned on or off
+		 * @param USE_UPDATE use surfel update or no
+		 * @param camera_params use this specific set of camera parameters for projection
 		 */
 		SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 		  	     double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, CameraParams &camera_params) ;
+			     bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, bool USE_UPDATE, CameraParams &camera_params) ;
+	
+		/**
+		 * \brief A parametric constructor
+		 * Constructs the SurfelMapper object
+		 * @param SCENE_SIZE preallocated size of scene
+		 * @param LOGGING logging turned on or off
+		 * @param camera_params use this specific set of camera parameters for projection
+		 */
+		SurfelMapper(int SCENE_SIZE, bool LOGGING, CameraParams &camera_params) ; 
+
 		/**
 		 * \brief A non-parametric constructor
 		 * Constructs the SurfelMapper object with default parameters

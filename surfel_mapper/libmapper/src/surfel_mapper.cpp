@@ -253,6 +253,7 @@ void SurfelMapper::printSettings()
 	std::cout << "USE_FRUSTUM = " << USE_FRUSTUM << std::endl ;
 	std::cout << "SCENE_SIZE = " << SCENE_SIZE << std::endl ;
 	std::cout << "LOGGING = " << LOGGING << std::endl ;
+	std::cout << "USE_UPDATE = " << USE_UPDATE << std::endl ;
 	std::cout << "alpha = " << camera_params.alpha << std::endl ;
 	std::cout << "beta = " << camera_params.beta << std::endl ;
 	std::cout << "cx = " << camera_params.cx << std::endl ;
@@ -288,7 +289,7 @@ void SurfelMapper::initLogger()
 
 SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINECT_DIST, double OCTREE_RESOLUTION, 
 			   double PREVIEW_RESOLUTION, int PREVIEW_COLOR_SAMPLES_IN_VOXEL, int CONFIDENCE_THRESHOLD1, double MIN_SCAN_ZNORMAL, 
-			   bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, CameraParams &camera_params): 
+			   bool USE_FRUSTUM, int SCENE_SIZE, bool LOGGING, bool USE_UPDATE, CameraParams &camera_params): 
 				cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
 {
 	this->DMAX  = DMAX ;
@@ -300,6 +301,25 @@ SurfelMapper::SurfelMapper(double DMAX, double MIN_KINECT_DIST, double MAX_KINEC
 	this->CONFIDENCE_THRESHOLD1 = CONFIDENCE_THRESHOLD1 ;
 	this->MIN_SCAN_ZNORMAL = MIN_SCAN_ZNORMAL ;
 	this->USE_FRUSTUM = USE_FRUSTUM ;
+	this->SCENE_SIZE = SCENE_SIZE ;
+	this->LOGGING = LOGGING ;
+	this->USE_UPDATE = USE_UPDATE ;
+	this->camera_params = camera_params ;
+
+	printSettings() ;
+
+	cloudScene->reserve(this->SCENE_SIZE) ;
+	octree.setResolution(this->OCTREE_RESOLUTION) ; //Does it give the same effect as placed in the constructor?
+	//octree.defineBoundingBox(-100,-100,-100, 100, 100, 100) ;	
+	octree.setInputCloud(cloudScene) ;
+
+	initLogger() ;
+}
+
+
+SurfelMapper::SurfelMapper(int SCENE_SIZE, bool LOGGING, CameraParams &camera_params): 
+				cloudScene(new pcl::PointCloud<PointCustomSurfel>), cloudSceneDownsampled(new pcl::PointCloud<pcl::PointXYZRGB>), octree(500.0)
+{
 	this->SCENE_SIZE = SCENE_SIZE ;
 	this->LOGGING = LOGGING ;
 	this->camera_params = camera_params ;
@@ -467,138 +487,139 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 	unsigned int ntotal_scans = 0 ;
 	int ncorrect_surfels = getPointCount() ;
 
-	timer.reset() ;
 	/*float umin = 1e6 ;
 	float umax = -1e6 ;
 	float vmin = 1e6 ;
 	float vmax = -1e6 ;*/
 	
-	//Iterate Octree in a depth-first manner
-	unsigned int acceptBelowDepth = UINT_MAX ;
-	pcl::octree::OctreePointCloud<PointCustomSurfel>::DepthFirstIterator it = octree.depth_begin() ;
-	const pcl::octree::OctreePointCloud<PointCustomSurfel>::DepthFirstIterator it_end = octree.depth_end();
-	while(it != it_end) {
-		octree_nodes_visited++ ;
-		unsigned int current_depth = it.getCurrentOctreeDepth() ;
-		//std::cout << "Current depth: " << current_depth << std::endl ;
+	if (USE_UPDATE) {	
+		timer.reset() ;
+		//Iterate Octree in a depth-first manner
+		unsigned int acceptBelowDepth = UINT_MAX ;
+		pcl::octree::OctreePointCloud<PointCustomSurfel>::DepthFirstIterator it = octree.depth_begin() ;
+		const pcl::octree::OctreePointCloud<PointCustomSurfel>::DepthFirstIterator it_end = octree.depth_end();
+		while(it != it_end) {
+			octree_nodes_visited++ ;
+			unsigned int current_depth = it.getCurrentOctreeDepth() ;
+			//std::cout << "Current depth: " << current_depth << std::endl ;
 
-		//Cancel acceptBelowDepth if we went above a child branch that is completely in a frustum
-		if (current_depth <= acceptBelowDepth)
-			acceptBelowDepth = UINT_MAX ;
+			//Cancel acceptBelowDepth if we went above a child branch that is completely in a frustum
+			if (current_depth <= acceptBelowDepth)
+				acceptBelowDepth = UINT_MAX ;
 
-		//Compute frustum if necessary
-		int frustum_result ;
-		if (current_depth > acceptBelowDepth)  
-			frustum_result = pcl::visualization::PCL_INSIDE_FRUSTUM ;
-		else {
-			Eigen::Vector3f min_bb, max_bb ;
-			octree.getVoxelBounds(it, min_bb, max_bb) ;	
-			if (!USE_FRUSTUM)
-				frustum_result = pcl::visualization::PCL_INSIDE_FRUSTUM ; //If we don't want frustum calling - let denote any voxel as belonging to frustum (accept everything)
-			else 
-				frustum_result = pcl::visualization::cullFrustum(frustum, min_bb.cast<double>(), max_bb.cast<double>()) ; 
-			if (frustum_result == pcl::visualization::PCL_INSIDE_FRUSTUM)
-				acceptBelowDepth = it.getCurrentOctreeDepth() ; //We may mark that all nodes below will be automatically accepted
-		}
-
-
-		if (frustum_result == pcl::visualization::PCL_OUTSIDE_FRUSTUM) 
-			skipChildVoxelsCorrect(it, it_end) ;
-		else { 
-			if (it.isLeafNode()) {
-				//Transform and update all points in a leaf
-				pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer();
-				std::vector<int> &pointIndices  = container.getPointIndicesVector() ;
-				//std::vector<int> pointIndices ; 
-				//container.getPointIndices(pointIndices) ;
-
-				PointCustomSurfel pointTrans ;
-				for (int i = 0; i < pointIndices.size() ; i++)  {
-					surfels_inside_octree_frustum++ ;
-					transformPointAffine(cloudScene->points[pointIndices[i]], pointTrans, viewMatrix) ; //TODO: might perform unnecessary copying (we need only xyz, not the metadata...)
-					if (pointTrans.z <= MAX_KINECT_DIST + DMAX && pointTrans.z >= MIN_KINECT_DIST - DMAX) { //In frustum cullling we remove surfels too close or too far, should we be consistent in that? 
-						float xp = pointTrans.x / pointTrans.z ;
-						float yp = pointTrans.y / pointTrans.z ;
-						float u = alpha * xp + cx ;
-						float v = beta * yp + cy ;
-
-						/*if (u <= umin) umin = u ;
-						  if (u >= umax) umax = u ;
-						  if (v <= vmin) vmin = v ;
-						  if (v >= vmax) vmax = v ;*/
-
-						float zscan = getZAtPosition(cloudNormalsTrans, u, v) ;
-						if (std::isnan(zscan) || zscan >= 0.0f) //in both cases we hit image plane
-							surfels_projected_on_sensor++ ;
-						if (!std::isnan(zscan) && zscan >= 0.0f) {
-							//surfels_projected_on_sensor++ ;
-							if (fabs(zscan - pointTrans.z) <= DMAX) { 
-								//We have a surfel-scan match, we may update the surfel here... 
-
-								pcl::PointXYZRGBNormal pointInterpolated, pointInterpolatedTrans ; 
-								getPointAtPosition(cloudNormals, cloudNormalsTrans, u, v, pointInterpolated, pointInterpolatedTrans) ;
-								//Computing running average
-								PointCustomSurfel &pointSurfel = cloudScene->points[pointIndices[i]] ;
-
-								pointSurfel.x = (pointSurfel.x * pointSurfel.count + pointInterpolated.x) / (pointSurfel.count + 1) ;
-								pointSurfel.y = (pointSurfel.y * pointSurfel.count + pointInterpolated.y) / (pointSurfel.count + 1) ;
-								pointSurfel.z = (pointSurfel.z * pointSurfel.count + pointInterpolated.z) / (pointSurfel.count + 1) ;
-
-								pointSurfel.normal_x = (pointSurfel.normal_x * pointSurfel.count + pointInterpolated.normal_x) / (pointSurfel.count + 1) ;
-								pointSurfel.normal_y = (pointSurfel.normal_y * pointSurfel.count + pointInterpolated.normal_y) / (pointSurfel.count + 1) ;
-								pointSurfel.normal_z = (pointSurfel.normal_z * pointSurfel.count + pointInterpolated.normal_z) / (pointSurfel.count + 1) ;
-
-								pointSurfel.r = (uint8_t) ((((uint32_t) pointSurfel.r) * pointSurfel.count + pointInterpolated.r) / (pointSurfel.count + 1)) ;
-								pointSurfel.g = (uint8_t) ((((uint32_t) pointSurfel.g) * pointSurfel.count + pointInterpolated.g) / (pointSurfel.count + 1)) ;
-								pointSurfel.b = (uint8_t) ((((uint32_t) pointSurfel.b) * pointSurfel.count + pointInterpolated.b) / (pointSurfel.count + 1)) ;
-
-								pointSurfel.count++ ;
-								pointSurfel.confidence++ ;
-
-								float scanR = -pointInterpolatedTrans.z / pointInterpolatedTrans.normal_z * zTor  ;
-								/*if (fabs(scanR) > 0.2) {
-								  std::cout << "pointinterpolated.z " << pointInterpolated.z << std::endl ;
-								  std::cout << "pointinterpolated.normal_z " << pointInterpolated.normal_z ;
-								  }*/
-								pointSurfel.radius = std::min<float>(pointSurfel.radius, scanR) ; //Update radius only when the new one is smaller
-								/*if (pointSurfel.radius < 0) {
-								  std::cout << pointSurfel.radius ;
-								  }*/
-
-								//We do not update colors now (in original solution (Weise) - they take color from the most perpendicular view)
-								//TODO: possibly handle color update...
-
-								markScanAsCovered(scan_covered, u, v) ; 
-								nsurfels_updated++ ;
-							} else if (zscan - pointTrans.z > DMAX) {
-								//The observed point is behing the surfel, we may either remove the observation or the surfel (depending e.g. on the confidence)
-								//markScanAsCovered(scan_covered, u, v) ; 
-								PointCustomSurfel &pointSurfel = cloudScene->points[pointIndices[i]] ;
-								if (pointSurfel.confidence < CONFIDENCE_THRESHOLD1) {
-									//NaN surfel in the cloud (we do not remove it in order to maintain the structure of indices
-									pointSurfel.x = pointSurfel.y = pointSurfel.z = std::numeric_limits<float>::quiet_NaN () ;
-									//remove surfel from Octree
-									pointIndices[i] = -1 ; //Mark as invalid (designed for future removal)
-									nsurfels_removed++ ;
-								} else {
-									markScanAsCovered(scan_covered, u, v) ;
-								}
-								nscan_too_far++ ;
-							} else
-								nscan_too_close++ ;
-						} else nsurfels_invalid_reading++ ;
-					}
-				}
-				//The actual removal of marked (negative) indices
-				vector<int>::iterator end_valid = remove_if(pointIndices.begin(), pointIndices.end(), IsNegative);
-				pointIndices.erase(end_valid, pointIndices.end());
+			//Compute frustum if necessary
+			int frustum_result ;
+			if (current_depth > acceptBelowDepth)  
+				frustum_result = pcl::visualization::PCL_INSIDE_FRUSTUM ;
+			else {
+				Eigen::Vector3f min_bb, max_bb ;
+				octree.getVoxelBounds(it, min_bb, max_bb) ;	
+				if (!USE_FRUSTUM)
+					frustum_result = pcl::visualization::PCL_INSIDE_FRUSTUM ; //If we don't want frustum calling - let denote any voxel as belonging to frustum (accept everything)
+				else 
+					frustum_result = pcl::visualization::cullFrustum(frustum, min_bb.cast<double>(), max_bb.cast<double>()) ; 
+				if (frustum_result == pcl::visualization::PCL_INSIDE_FRUSTUM)
+					acceptBelowDepth = it.getCurrentOctreeDepth() ; //We may mark that all nodes below will be automatically accepted
 			}
-			it++ ;
-		}
-	}
 
-	std::cout << "Surfel update time (s): [" << timer.getTimeSeconds() << "]" << std::endl ;
-	logger.log("surfel_update_time", timer.getTimeSeconds()) ;
+
+			if (frustum_result == pcl::visualization::PCL_OUTSIDE_FRUSTUM) 
+				skipChildVoxelsCorrect(it, it_end) ;
+			else { 
+				if (it.isLeafNode()) {
+					//Transform and update all points in a leaf
+					pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer();
+					std::vector<int> &pointIndices  = container.getPointIndicesVector() ;
+					//std::vector<int> pointIndices ; 
+					//container.getPointIndices(pointIndices) ;
+
+					PointCustomSurfel pointTrans ;
+					for (int i = 0; i < pointIndices.size() ; i++)  {
+						surfels_inside_octree_frustum++ ;
+						transformPointAffine(cloudScene->points[pointIndices[i]], pointTrans, viewMatrix) ; //TODO: might perform unnecessary copying (we need only xyz, not the metadata...)
+						if (pointTrans.z <= MAX_KINECT_DIST + DMAX && pointTrans.z >= MIN_KINECT_DIST - DMAX) { //In frustum cullling we remove surfels too close or too far, should we be consistent in that? 
+							float xp = pointTrans.x / pointTrans.z ;
+							float yp = pointTrans.y / pointTrans.z ;
+							float u = alpha * xp + cx ;
+							float v = beta * yp + cy ;
+
+							/*if (u <= umin) umin = u ;
+							  if (u >= umax) umax = u ;
+							  if (v <= vmin) vmin = v ;
+							  if (v >= vmax) vmax = v ;*/
+
+							float zscan = getZAtPosition(cloudNormalsTrans, u, v) ;
+							if (std::isnan(zscan) || zscan >= 0.0f) //in both cases we hit image plane
+								surfels_projected_on_sensor++ ;
+							if (!std::isnan(zscan) && zscan >= 0.0f) {
+								//surfels_projected_on_sensor++ ;
+								if (fabs(zscan - pointTrans.z) <= DMAX) { 
+									//We have a surfel-scan match, we may update the surfel here... 
+
+									pcl::PointXYZRGBNormal pointInterpolated, pointInterpolatedTrans ; 
+									getPointAtPosition(cloudNormals, cloudNormalsTrans, u, v, pointInterpolated, pointInterpolatedTrans) ;
+									//Computing running average
+									PointCustomSurfel &pointSurfel = cloudScene->points[pointIndices[i]] ;
+
+									pointSurfel.x = (pointSurfel.x * pointSurfel.count + pointInterpolated.x) / (pointSurfel.count + 1) ;
+									pointSurfel.y = (pointSurfel.y * pointSurfel.count + pointInterpolated.y) / (pointSurfel.count + 1) ;
+									pointSurfel.z = (pointSurfel.z * pointSurfel.count + pointInterpolated.z) / (pointSurfel.count + 1) ;
+
+									pointSurfel.normal_x = (pointSurfel.normal_x * pointSurfel.count + pointInterpolated.normal_x) / (pointSurfel.count + 1) ;
+									pointSurfel.normal_y = (pointSurfel.normal_y * pointSurfel.count + pointInterpolated.normal_y) / (pointSurfel.count + 1) ;
+									pointSurfel.normal_z = (pointSurfel.normal_z * pointSurfel.count + pointInterpolated.normal_z) / (pointSurfel.count + 1) ;
+
+									pointSurfel.r = (uint8_t) ((((uint32_t) pointSurfel.r) * pointSurfel.count + pointInterpolated.r) / (pointSurfel.count + 1)) ;
+									pointSurfel.g = (uint8_t) ((((uint32_t) pointSurfel.g) * pointSurfel.count + pointInterpolated.g) / (pointSurfel.count + 1)) ;
+									pointSurfel.b = (uint8_t) ((((uint32_t) pointSurfel.b) * pointSurfel.count + pointInterpolated.b) / (pointSurfel.count + 1)) ;
+
+									pointSurfel.count++ ;
+									pointSurfel.confidence++ ;
+
+									float scanR = -pointInterpolatedTrans.z / pointInterpolatedTrans.normal_z * zTor  ;
+									/*if (fabs(scanR) > 0.2) {
+									  std::cout << "pointinterpolated.z " << pointInterpolated.z << std::endl ;
+									  std::cout << "pointinterpolated.normal_z " << pointInterpolated.normal_z ;
+									  }*/
+									pointSurfel.radius = std::min<float>(pointSurfel.radius, scanR) ; //Update radius only when the new one is smaller
+									/*if (pointSurfel.radius < 0) {
+									  std::cout << pointSurfel.radius ;
+									  }*/
+
+									//We do not update colors now (in original solution (Weise) - they take color from the most perpendicular view)
+									//TODO: possibly handle color update...
+
+									markScanAsCovered(scan_covered, u, v) ; 
+									nsurfels_updated++ ;
+								} else if (zscan - pointTrans.z > DMAX) {
+									//The observed point is behing the surfel, we may either remove the observation or the surfel (depending e.g. on the confidence)
+									//markScanAsCovered(scan_covered, u, v) ; 
+									PointCustomSurfel &pointSurfel = cloudScene->points[pointIndices[i]] ;
+									if (pointSurfel.confidence < CONFIDENCE_THRESHOLD1) {
+										//NaN surfel in the cloud (we do not remove it in order to maintain the structure of indices
+										pointSurfel.x = pointSurfel.y = pointSurfel.z = std::numeric_limits<float>::quiet_NaN () ;
+										//remove surfel from Octree
+										pointIndices[i] = -1 ; //Mark as invalid (designed for future removal)
+										nsurfels_removed++ ;
+									} else {
+										markScanAsCovered(scan_covered, u, v) ;
+									}
+									nscan_too_far++ ;
+								} else
+									nscan_too_close++ ;
+							} else nsurfels_invalid_reading++ ;
+						}
+					}
+					//The actual removal of marked (negative) indices
+					vector<int>::iterator end_valid = remove_if(pointIndices.begin(), pointIndices.end(), IsNegative);
+					pointIndices.erase(end_valid, pointIndices.end());
+				}
+				it++ ;
+			}
+		}
+		std::cout << "Surfel update time (s): [" << timer.getTimeSeconds() << "]" << std::endl ;
+		logger.log("surfel_update_time", timer.getTimeSeconds()) ;
+	}
 
 	//std::cout << "(u,v)-bounds: [" << umin << "," << umax << "],[" << vmin << "," << vmax << "]" << std::endl ;
 

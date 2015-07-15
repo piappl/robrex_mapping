@@ -28,6 +28,7 @@ double min_scan_znormal ;
 bool use_frustum ;
 int scene_size ;
 bool logging ;
+bool use_update ;
 
 struct SensorPose {
 	public:
@@ -179,7 +180,7 @@ void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr &msg)
 		mapper.reset(new SurfelMapper(dmax, min_kinect_dist, max_kinect_dist, octree_resolution,
 						preview_resolution, preview_color_samples_in_voxel,
 						confidence_threshold, min_scan_znormal, 
-						use_frustum, scene_size, logging, camera_params)) ;
+						use_frustum, scene_size, logging, use_update, camera_params)) ;
 
 		processCloudMsgQueue() ; //In case we only waited for camera_info message
 	}
@@ -309,7 +310,7 @@ int main(int argc, char **argv)
 	if (!np.getParam("use_frustum", use_frustum)) use_frustum = true ;
 	if (!np.getParam("scene_size", scene_size)) scene_size = 3e7 ;
 	if (!np.getParam("logging", logging)) logging = true ;
-
+	if (!np.getParam("use_update", use_update)) use_update = true ;
 
 	ros::Subscriber sub_path = n.subscribe("mapper_path", 3, pathCallback);
 	ros::Subscriber sub_keyframe = n.subscribe("keyframes", 200, keyframeCallback);

@@ -26,6 +26,12 @@ BOOST_CHECK_MESSAGE( add( 2,2 ) == 4,  // #6 continues on error
 BOOST_CHECK_EQUAL( add( 2,2 ), 4 );      // #7 continues on error*/
 ////////////////////////////////////////////////////////////////////////
 
+CameraParams camera_params = { //Default camera parameters
+	481.2, //alpha
+	480.0, //beta
+	319.5, //cx
+	239.5  //cy
+}; //Fixed camera params 
 
 void constructPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
 	// Create a simple input cloud (flat surface) 
@@ -35,10 +41,15 @@ void constructPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
 
 	//Sample Kincect calibration data	
 	cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>(640,480, p)) ;
-	double alpha = 518.930578 ; //fx
-	double cx = 323.483756 ;
-	double beta = 517.211658 ; //fy
-	double cy = 260.384697 ;
+
+	double alpha = camera_params.alpha ;
+	double beta = camera_params.beta ;
+	double cx = camera_params.cx ;
+	double cy = camera_params.cy ;  
+	//double alpha = 518.930578 ; //fx
+	//double cx = 323.483756 ;
+	//double beta = 517.211658 ; //fy
+	//double cy = 260.384697 ;
 
 	for (uint32_t i = 50; i < 150 ; i++) 
 		for (uint32_t j = 50 ; j < 150 ; j++) {
@@ -70,8 +81,8 @@ BOOST_AUTO_TEST_CASE(TestAddPointCloud) {
 
 	cloud->sensor_origin_ << 0, 0, 0, 1 ;
 	cloud->sensor_orientation_ = Eigen::Quaternionf(1,0,0,0) ;
-
-	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper())  ;
+	
+	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper(3e7, false, camera_params))  ;
 	mapper->addPointCloudToScene(cloud) ;
 
 	size_t pcount = mapper->getPointCount() ;
@@ -87,7 +98,7 @@ BOOST_AUTO_TEST_CASE(TestAddSingleViewpoint) {
 	cloud->sensor_origin_ << 0, 0, 0, 1 ;
 	cloud->sensor_orientation_ = Eigen::Quaternionf(1,0,0,0) ;
 
-	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper())  ;
+	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper(3e7, false, camera_params))  ;
 	mapper->addPointCloudToScene(cloud) ;
 	size_t startcount = mapper->getPointCount() ;
 	mapper->addPointCloudToScene(cloud) ;
@@ -108,7 +119,7 @@ BOOST_AUTO_TEST_CASE(testAddMultipleViewpoints) {
 	cloud->sensor_origin_ << 0, 0, 0, 1 ;
 	cloud->sensor_orientation_ = Eigen::Quaternionf(1,0,0,0) ; //Euler 0 0 0
 
-	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper())  ;
+	boost::shared_ptr<SurfelMapper> mapper(new SurfelMapper(3e7, false, camera_params))  ;
 	mapper->addPointCloudToScene(cloud) ;
 	size_t startcount = mapper->getPointCount() ;
 

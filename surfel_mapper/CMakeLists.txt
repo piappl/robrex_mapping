@@ -64,6 +64,7 @@ add_service_files(
   FILES
   ResetMap.srv
   PublishMap.srv
+  SaveMap.srv
 )
 
 ## Generate actions in the 'action' folder

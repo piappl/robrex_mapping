@@ -775,3 +775,30 @@ void SurfelMapper::getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Ei
 {
 	octree.boxSearch(min_pt, max_pt, k_indices) ;
 }
+
+void SurfelMapper::getAllIndices(std::vector<int> &k_indices) 
+{
+	//std::vector<int> k_indices1 ;
+	//double minx, miny, minz, maxx, maxy, maxz ;
+	//octree.getBoundingBox(minx, miny, minz, maxx, maxy, maxz) ;
+	//Eigen::Vector3f min_pt(minx, miny, minz) ;
+	//Eigen::Vector3f max_pt(maxx, maxy, maxz) ;
+	//octree.boxSearch(min_pt, max_pt, k_indices) ;
+
+	//Collect indices of points from all leaves
+	pcl::octree::OctreePointCloud<PointCustomSurfel>::LeafNodeIterator it = octree.leaf_begin() ;
+	const pcl::octree::OctreePointCloud<PointCustomSurfel>::DepthFirstIterator it_end = octree.leaf_end();
+	while(it != it_end) {
+		if (it.isLeafNode()) {
+			//Examine points in the voxel	
+			pcl::octree::OctreeContainerPointIndices& container = it.getLeafContainer() ;
+			std::vector<int> &pointIndices  = container.getPointIndicesVector() ;
+			k_indices.insert(k_indices.end(), pointIndices.begin(), pointIndices.end()) ; //What about the performance
+		} else {
+			std::cerr << "LeafNode iterator error - we are not in the leaf node!" << std::endl ;
+		}
+		it++ ;
+	}
+
+	//std::cout << "getAllIndices: method 1 " << k_indices.size() << " and method 2 " << k_indices1.size() << std::endl ;
+}

@@ -6,6 +6,8 @@
 #include "visualization_msgs/MarkerArray.h"
 #include "pcl_conversions/pcl_conversions.h"
 #include "pcl/common/point_tests.h"
+#include "pcl/common/io.h"
+#include "pcl/filters/filter.h"
 #include <Eigen/Geometry>
 #include <limits.h>
 #include <tf/transform_listener.h>
@@ -13,6 +15,7 @@
 #include "surfel_mapper.hpp"
 #include "surfel_mapper/ResetMap.h"
 #include "surfel_mapper/PublishMap.h"
+#include "surfel_mapper/SaveMap.h"
 #include <algorithm>
 #include <math.h>
 
@@ -260,6 +263,64 @@ void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vec
 	surfel_map_pub.publish(marray) ;
 }
 
+void saveMap(const std::string &fileName) 
+{
+	//Copy map to standard RGBXYZ point cloud. Leave only points that are actually valid (octree indices are present) 
+	pcl::PointCloud<PointCustomSurfel>::Ptr cloud = mapper->getCloudScene() ;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudXYZRGB(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudXYZRGBfilt(new pcl::PointCloud<pcl::PointXYZRGB>) ;
+	std::vector<int> indv ;
+	mapper->getAllIndices(indv) ;
+	//Divide point downcasting and filtering in two steps (one step approach causes crash frequently...)
+	//Investigate if this was due to unordered indices
+
+	pcl::copyPointCloud(*cloud, *cloudXYZRGB) ;
+
+	//We cannot perform in-place copy - indices may be unordered
+	pcl::copyPointCloud(*cloudXYZRGB, indv, *cloudXYZRGBfilt) ;
+
+	pcl::io::savePCDFileBinary(fileName, *cloudXYZRGBfilt) ;
+
+	/*	
+	std::cout << "Cloud length: " << cloudXYZRGB->size() << std::endl ;
+	//pcl::removeNaNFromPointCloud(*cloudXYZRGB, *cloudXYZRGB, indv) ;
+	int count = 0 ;
+	for (int i = 0; i < cloudXYZRGB->points.size() ; i++)
+		if (!pcl_isfinite(cloudXYZRGB->points[i].x))
+			count++ ;	
+
+	std::vector<int> ind1 ;
+	ind1.resize(cloudXYZRGB->size()) ;	
+	for (int i = 0; i < ind1.size() ; i++)
+		ind1[i] = 0 ;
+	
+	for (int i = 0; i < indv.size() ; i++)
+		ind1[indv[i]] = 1 ;
+
+	int count1 = 0 ;
+	int count2 = 0 ;
+	for (int i = 0; i < ind1.size() ; i++)
+		if (ind1[i] == 0) {
+			std::cout << "*" << i << "+" << cloudXYZRGB->points[i].x << std::endl ;
+			count1++ ;
+			if (pcl_isfinite(cloudXYZRGB->points[i].x))
+				count2++ ;
+		}
+
+	std::cout << "Number of non nans: " << indv.size() << std::endl ;
+	std::cout << "Number of nans: " << count << std::endl ;
+	std::cout << "Cloud length: " << cloudXYZRGB->size() << std::endl ;
+	std::cout << "Count1: " << count1 << std::endl ;
+	std::cout << "Count2: " << count2 << std::endl ;
+
+	if (mapper->getPointCount() != indv.size())
+		std::cerr << "saveMap: mapper->getPointCount does not match cloud index vector size" ;
+
+	std::cout << "Saving map. Point count: " << mapper->getPointCount() << std::endl ;
+	std::cout.flush() ;
+	*/	
+}
+
 bool resetMapCallback(
   surfel_mapper::ResetMap::Request& request,
   surfel_mapper::ResetMap::Response& response)
@@ -290,7 +351,18 @@ bool publishMapCallback(
 	return true ;
 }
 
-
+bool saveMapCallback(
+  surfel_mapper::SaveMap::Request& request,
+  surfel_mapper::SaveMap::Response& response)
+{
+	ROS_INFO("SaveMap request arrived.") ;	
+	if (mapper) {
+		saveMap("cloud.pcd") ;	
+		ROS_INFO("The map has been saved") ;	
+	} else
+		ROS_INFO("saveMapCallback: Mapper not initialized.") ;
+	return true ;
+}
 
 int main(int argc, char **argv)
 {
@@ -321,6 +393,7 @@ int main(int argc, char **argv)
 
 	ros::ServiceServer resetmap_service = n.advertiseService("reset_map", resetMapCallback);
 	ros::ServiceServer publishmap_service = n.advertiseService("publish_map", publishMapCallback);
+	ros::ServiceServer savemap_service = n.advertiseService("save_map", saveMapCallback);
 
 	ros::Rate r(2) ;
 

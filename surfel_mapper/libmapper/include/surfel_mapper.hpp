@@ -174,6 +174,14 @@ class SurfelMapper {
 		 * @param k_indices selected indices are stored in this argument
 		 */
 		void getBoundingBoxIndices(const Eigen::Vector3f &min_pt, const Eigen::Vector3f &max_pt, std::vector<int> &k_indices) ;
+
+		/**
+		 * \brief Gets indices for all points in the map 
+		 * Gets indices for all points in the map. The indices refer to the cloud that can be retrieved (at the same time) using
+		 * SurfelMapper::getCloudScene()
+		 * @param k_indices selected indices are stored in this argument
+		 */
+		void getAllIndices(std::vector<int> &k_indices) ;
 } ;
 
 #endif

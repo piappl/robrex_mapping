@@ -1,4 +1,4 @@
-<!-- Launch visual odometry-->
+<!-- Launch visual odometry with keyframe mapper-->
 <launch> 
 	<!--<node pkg="tf" type="static_transform_publisher" name="camera_depth_optical_frame_tf"
 	args="0 0 0 0 0 0 1  /camera_link /camera_depth_optical_frame 40" />-->        
@@ -21,14 +21,6 @@
 		<!--Registration settings-->
 		<param name="reg/ICPProbModel/max_model_size" value="20000"/>
 	</node>
-
-	<!--KeyFrame Capture-->
-	<node pkg="ccny_rgbd" type="keyframe_mapper_node" name="keyframe_mapper_node" 
-	output="screen">
-		<!--Setup remappings -->
-		<remap from="/rgbd/depth" to="/camera/depth_registered/image_rect_raw"/>
-		<remap from="/rgbd/rgb"   to="/camera/rgb/image_rect_color"/>
-		<remap from="/rgbd/info"  to="/camera/rgb/camera_info"/>   
-	</node>
-
+	<!--Include KeyFrame Capture-->
+	<include file="$(find surfel_mapper)/launch/keyframe_mapper.launch"/>       
 </launch>

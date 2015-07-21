@@ -8,6 +8,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 import sensor_msgs.msg
+import tf
 
 import yaml
 import os
@@ -30,13 +31,18 @@ class sequence_publisher:
 
     self.ir_frame = rospy.get_param('~depth_frame_id', 'depth_frame')
     self.rgb_frame = rospy.get_param('~rgb_frame_id', 'rgb_frame')
+
+    self.publish_pos = rospy.get_param('~publish_pos', True) 
+    self.offset = rospy.get_param('~offset', 0) 
     
     print self.rgb_frame
     print self.ir_frame
 
     self.images = self.load_names(self.path)
-    self.cur_ap = 0
-    self.cur_im = 0
+    if self.publish_pos:
+        self.positions = self.load_positions(self.path)
+    self.cur_im = self.offset 
+    self.cur_pos = 0
 
     self.ci = self.parse_yaml(os.path.join(self.calibpath, "rgb.yml"))
     self.ci.header.frame_id = self.rgb_frame
@@ -70,21 +76,40 @@ class sequence_publisher:
 #    print ret
     return ret
       
+  def load_positions(self, base_path):
+    ret = []
+    ass_file = open(os.path.join(base_path, "trajectory.txt"))
+ #   print "Loaded names"
+    for line in ass_file:
+      elem = {}
+      names = line.strip("\r\n").split(" ")
+      elem['tx'] = float(names[1])
+      elem['ty'] = float(names[2])
+      elem['tz'] = float(names[3])
+      elem['qx'] = float(names[4])
+      elem['qy'] = float(names[5])
+      elem['qz'] = float(names[6])
+      elem['qw'] = float(names[7])
+      ret.append(elem)
+    #print ret
+    return ret
+
   def send_next_image(self):
     if self.cur_im >= len(self.images) and self.loop:
-      self.cur_im = 0
+      self.cur_im = self.offset 
+      self.cur_pos = 0
     
-    if self.cur_im >= len(self.images):
+    if self.cur_im >= len(self.images) or (self.publish_pos and self.cur_pos >= len(self.positions)):
         print "Finished!"
         return False
       
     im_ir = os.path.join(self.path,self.images[self.cur_im]['depth'])
     im_co = os.path.join(self.path,self.images[self.cur_im]['rgb'])
     self.cur_im = self.cur_im + 1
-    
-    try:
-      curtime = rospy.Time.now()
 
+    curtime = rospy.Time.now()
+    #Sending image messages
+    try:
       img_ir = cv2.imread(im_ir, cv2.IMREAD_UNCHANGED) / 5
       #print img_ir[0][0]
       #img_ir.shape = (img_ir.shape[0],img_ir.shape[1],1)
@@ -104,11 +129,25 @@ class sequence_publisher:
       
       #print "IR: " + im_ir
       #print "CO: " + im_co
-      return True
     except CvBridgeError, e:
       print e
       return False
 
+    if self.publish_pos:
+      if self.cur_pos >= len(self.positions):
+        print "Error: not enough position entries!"
+        return False
+
+      #Sending sensor position (transformation)
+      pos = self.positions[self.cur_pos]
+      br = tf.TransformBroadcaster()
+      br.sendTransform((pos['tx'], pos['ty'], pos['tz']),
+                       (pos['qx'], pos['qy'], pos['qz'], pos['qw']),
+                       curtime,
+                       self.ir_frame,
+                       "odom")
+      self.cur_pos = self.cur_pos + 1
+    return True
 
 def main(args):
   rospy.init_node('sequence_publisher', anonymous=True)

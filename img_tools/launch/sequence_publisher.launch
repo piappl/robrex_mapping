@@ -10,7 +10,8 @@
   <arg name="depth_frame_id" default="camera_depth_optical_frame" />
   <arg name="rgb_frame_id" default="camera_rgb_optical_frame" />
 
-
+  <arg name="publish_pos" default="false" />
+  <arg name="offset" default="1" />
 
   <node name="seq_pub" pkg="img_tools" type="sequence_publisher.py" output="screen">
     <param name="path" value="$(arg path)" />
@@ -19,6 +20,9 @@
     
     <param name="depth_frame_id" value="$(arg depth_frame_id)" />
     <param name="rgb_frame_id" value="$(arg rgb_frame_id)" />
+
+    <param name="publish_pos" value="$(arg publish_pos)" />
+    <param name="offset" value="$(arg offset)" />
 
     <remap from="image_color" to="$(arg color_topic)" />
     <remap from="image_ir" to="$(arg ir_topic)" />

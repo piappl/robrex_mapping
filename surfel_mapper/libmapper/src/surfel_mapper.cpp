@@ -1,3 +1,13 @@
+/**
+ *  @file surfel_mapper.cpp
+ *  @author Artur Wilkowski <ArturWilkowski@piap.pl>
+ * 
+ *  @section LICENSE
+ *
+ *  Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+ *  Security and Defence Systems Division <http://www.piap.pl>
+ */
+
 #include "surfel_mapper.hpp"
 #include <pcl/common/transforms.h>
 #include <pcl/visualization/common/common.h>

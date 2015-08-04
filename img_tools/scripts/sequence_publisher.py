@@ -1,4 +1,14 @@
 #!/usr/bin/env python
+
+##
+# @file sequence_publisher.py 
+# @author Maciej Stefanczyk <maciek.slon@gmail.com>
+# 
+# @section LICENSE
+#
+# Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+# Security and Defence Systems Division <http://www.piap.pl>
+
 import roslib
 roslib.load_manifest('img_tools')
 import sys

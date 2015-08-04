@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 
-#Author: Artur Wilkowski(PIAP)
+##
+# @file publish_images.py
+# @author Artur Wilkowski <ArturWilkowski@piap.pl>
+# 
+# @section LICENSE
+#
+# Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+# Security and Defence Systems Division <http://www.piap.pl>
 
 PKG = 'kinect_calib' # this package name
 import roslib; roslib.load_manifest(PKG)

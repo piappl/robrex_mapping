@@ -1,8 +1,19 @@
+/**
+ *  @file surfel_mapper_node.cpp
+ *  @author Artur Wilkowski <ArturWilkowski@piap.pl>
+ * 
+ *  @section LICENSE
+ *
+ *  Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+ *  Security and Defence Systems Division <http://www.piap.pl>
+ */
+
 #include "ros/ros.h"
 #include "nav_msgs/Path.h"
 #include "sensor_msgs/PointCloud2.h"
 #include <sensor_msgs/CameraInfo.h>
 #include "visualization_msgs/Marker.h"
+
 #include "visualization_msgs/MarkerArray.h"
 #include "pcl_conversions/pcl_conversions.h"
 #include "pcl/common/point_tests.h"

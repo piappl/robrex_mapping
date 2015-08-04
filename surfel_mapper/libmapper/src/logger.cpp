@@ -1,3 +1,13 @@
+/**
+ *  @file logger.cpp
+ *  @author Artur Wilkowski <ArturWilkowski@piap.pl>
+ * 
+ *  @section LICENSE
+ *
+ *  Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+ *  Security and Defence Systems Division <http://www.piap.pl>
+ */
+
 #include "logger_impl.hpp"
 
 //Instantiate necessary functions

@@ -1,3 +1,13 @@
+/**
+ *  @file surfel_mapper_test.cpp
+ *  @author Artur Wilkowski <ArturWilkowski@piap.pl>
+ * 
+ *  @section LICENSE
+ *
+ *  Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+ *  Security and Defence Systems Division <http://www.piap.pl>
+ */
+
 #define BOOST_TEST_MODULE SurfelMapperTest 
 #include <boost/test/unit_test.hpp>
 #include "surfel_mapper.hpp"

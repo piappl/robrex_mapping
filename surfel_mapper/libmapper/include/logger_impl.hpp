@@ -1,3 +1,13 @@
+/**
+ *  @file logger_impl.hpp
+ *  @author Artur Wilkowski <ArturWilkowski@piap.pl>
+ * 
+ *  @section LICENSE
+ *
+ *  Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+ *  Security and Defence Systems Division <http://www.piap.pl>
+ */
+
 #ifndef _LOGGER_IMPL
 #define _LOGGER_IMPL
 

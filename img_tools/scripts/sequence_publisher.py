@@ -160,8 +160,10 @@ def main(args):
         break
       print "Sending: " + str(ic.cur_im - 1) 
       rospy.sleep(ic.rate)
-    while not rospy.is_shutdown(): #Sleep until shutdown
-	rospy.sleep(1) 
+    while not rospy.is_shutdown(): #Sleep until shutdown, but sending camera info
+      ic.ci.header.stamp = rospy.Time.now() 
+      ic.camera_info_pub.publish(ic.ci)
+      rospy.sleep(0.1) 
     print "Exit!"
   except KeyboardInterrupt:
     print "Shutting down"

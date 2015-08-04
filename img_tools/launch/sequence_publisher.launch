@@ -11,7 +11,7 @@
   <arg name="rgb_frame_id" default="camera_rgb_optical_frame" />
 
   <arg name="publish_pos" default="false" />
-  <arg name="offset" default="1" />
+  <arg name="offset" default="0" />
 
   <node name="seq_pub" pkg="img_tools" type="sequence_publisher.py" output="screen">
     <param name="path" value="$(arg path)" />

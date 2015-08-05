@@ -4,7 +4,8 @@ RobREx Mapping
 Artur Wilkowski
 <ArturWilkowski@piap.pl>
 
-Copyright (C) 2015, Insdustrial Research Institute for Automation and Measurements
+Copyright (C) 2015, Industrial Research Institute for Automation and Measurements
+Security and Defence Systems Division 
 <http://www.piap.pl>
 
 Overview
@@ -13,6 +14,8 @@ Overview
 The software is composed of two modules. The first module 'kinect_calib' is used for kinect camera intrinsic and extrinsic parameters calibration. The second module 'surfel_mapper' is dedicated to efficient creation of 3D surfel maps using data from the Kinect sensor. The 'surfel_mapper' module relies on the visual odometry data that can be provided by Ivan Dryanovski 'CCNY RGB-D Tools' (Fast Visual Odometry and Mapping module) [ccny_rgbd_tools](https://github.com/ccny-ros-pkg/ccny_rgbd_tools).
 
 Both 'kinect_calib' and 'surfel_mapper' modules are available in the form of ROS nodes. The 'surfel_mapper' is additionally available as a stand-alone library. 
+
+This code is at an experimental stage, and licensed under the GPLv2 license.
 
 Installing on Ubuntu 14.04
 --------------------------
@@ -48,13 +51,13 @@ Update opencv from PPA to the version supporting SURF
 
 #### Checkout and build Robrex Mapping module ####
 	cd ~/catkin_ws/src
-	git clone git@gitlab.com:awilkowski/robrex-mapping.git
+	git clone git@github.com:piappl/robrex_mapping.git
 	cd ~/catkin_ws
 	catkin_make -DCMAKE_BUILD_TYPE=Release
 
 #### Checkout and build a patched FVOM module
 	cd ~/catkin_ws/src
-	git clone git@gitlab.com:awilkowski/ccny_rgbd_tools.git
+	git clone git@github.com:piappl/ccny_rgbd_tools.git
 	cd ~/catkin_ws/src/ccny_rgbd_tools
 	rosmake
 

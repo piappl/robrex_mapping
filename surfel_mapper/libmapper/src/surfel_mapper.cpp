@@ -621,7 +621,7 @@ void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &
 						}
 					}
 					//The actual removal of marked (negative) indices
-					vector<int>::iterator end_valid = remove_if(pointIndices.begin(), pointIndices.end(), IsNegative);
+                    std::vector<int>::iterator end_valid = remove_if(pointIndices.begin(), pointIndices.end(), IsNegative);
 					pointIndices.erase(end_valid, pointIndices.end());
 				}
 				it++ ;

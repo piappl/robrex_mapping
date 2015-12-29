@@ -13,9 +13,12 @@
 
 #include <pcl/point_types.h>
 
+/**
+ * @brief Structure representing properties of a surfel
+ */
 struct PointCustomSurfel {
-	PCL_ADD_POINT4D; 
-	PCL_ADD_NORMAL4D; 
+	PCL_ADD_POINT4D; /**< Adds 4d point fields */
+	PCL_ADD_NORMAL4D; /**< Adds 4d normal fields */
 	union
 	{
 		struct
@@ -25,19 +28,19 @@ struct PointCustomSurfel {
 			{
 				struct
 				{
-					uint8_t b;
-					uint8_t g;
-					uint8_t r;
-					uint8_t a;
+					uint8_t b; /**< blue color component */
+					uint8_t g; /**< green color component */
+					uint8_t r; /**< red color component */
+					uint8_t a; /**< alpha color component */
 				};
-				float rgb;
-				uint32_t rgba;
+				float rgb; /**< rgb color component */
+				uint32_t rgba; /**< rgba color component */
 			};
-			float radius;
-			uint32_t confidence;
-			uint32_t count;
+			float radius; /**< surfel radius */
+			uint32_t confidence; /**< surfel confidence */
+			uint32_t count; /**< surfel observation count */
 		};
-		float data_c[4];
+		float data_c[4]; /**< data accessor */
 	};
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };

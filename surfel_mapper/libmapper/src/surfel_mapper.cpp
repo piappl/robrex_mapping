@@ -26,7 +26,7 @@
 //#define CONFIDENCE_THRESHOLD1 5
 //#define MIN_SCAN_ZNORMAL 0.2f
 
-extern Logger logger ;
+extern Logger logger ; /**< Logger object */
 
 inline void SurfelMapper::transformPointAffine(PointCustomSurfel &point_in, PointCustomSurfel &point_out, Eigen::Matrix4d transform)
 {
@@ -358,6 +358,12 @@ SurfelMapper::SurfelMapper(): cloudScene(new pcl::PointCloud<PointCustomSurfel>)
 SurfelMapper::~SurfelMapper()
 {}
 
+/**
+ * Simple predicate testing negativeness of the number
+ *
+ * @param i input number
+ * @return true if the number is negative, false otherwise
+ */
 bool IsNegative (int i) { return i < 0 ; }
 
 void SurfelMapper::addPointCloudToScene(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud)

@@ -15,8 +15,8 @@
 #include <fstream>
 #include <iostream>
 
-#define SEPARATOR ";"
-#define NA_VALUE "n/a"
+#define SEPARATOR ";" /**< Default log file separator */
+#define NA_VALUE "n/a" /**< Default notation for not applicable fields */ 
 
 Logger::Logger():Logger(std::string("log.csv"))
 {}

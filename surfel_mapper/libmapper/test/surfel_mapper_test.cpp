@@ -8,6 +8,9 @@
  *  Security and Defence Systems Division <http://www.piap.pl>
  */
 
+/**
+ * Boost test module name
+ */
 #define BOOST_TEST_MODULE SurfelMapperTest 
 #include <boost/test/unit_test.hpp>
 #include "surfel_mapper.hpp"
@@ -36,6 +39,9 @@ BOOST_CHECK_MESSAGE( add( 2,2 ) == 4,  // #6 continues on error
 BOOST_CHECK_EQUAL( add( 2,2 ), 4 );      // #7 continues on error*/
 ////////////////////////////////////////////////////////////////////////
 
+/**
+ * Default camera parameters used in tests
+ */
 CameraParams camera_params = { //Default camera parameters
 	481.2, //alpha
 	480.0, //beta
@@ -43,6 +49,12 @@ CameraParams camera_params = { //Default camera parameters
 	239.5  //cy
 }; //Fixed camera params 
 
+
+/**
+ * Constructs a sample point cloud (flat surface)
+ *
+ * @param cloud  output cloud
+ */
 void constructPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
 	// Create a simple input cloud (flat surface) 
 	pcl::PointXYZRGB p ;
@@ -77,6 +89,13 @@ void constructPointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
 		}
 }
 
+
+/**
+ * Transforms the point cloud according to the sensor origin position and orientation memorized in the cloud 
+ *
+ * @param cloud input cloud
+ * @param cloudTrans output cloud
+ */
 void transformCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloudTrans) {
 	cloudTrans.reset(new pcl::PointCloud<pcl::PointXYZRGB>) ;
 	Eigen::Matrix4d viewMatrix ;
@@ -85,6 +104,10 @@ void transformCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, pcl::PointClo
 	pcl::transformPointCloud(*cloud, *cloudTrans, viewMatrix) ;
 }
 
+
+/**
+ * Boost test case - adding a sample cloud to the map 
+ */
 BOOST_AUTO_TEST_CASE(TestAddPointCloud) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	constructPointCloud(cloud) ;
@@ -101,6 +124,9 @@ BOOST_AUTO_TEST_CASE(TestAddPointCloud) {
     	BOOST_CHECK(pcount > 8500 && pcount < 9000) ;
 }
 
+/**
+ * Boost test case - adding several similar clouds 
+ */
 BOOST_AUTO_TEST_CASE(TestAddSingleViewpoint) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	constructPointCloud(cloud) ;
@@ -120,6 +146,9 @@ BOOST_AUTO_TEST_CASE(TestAddSingleViewpoint) {
     	BOOST_CHECK(startcount == endcount) ;
 }
 
+/**
+ * Boost test case - adding several different clouds 
+ */
 BOOST_AUTO_TEST_CASE(testAddMultipleViewpoints) {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud ;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudTrans ;

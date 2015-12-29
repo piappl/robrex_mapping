@@ -30,41 +30,50 @@
 #include <algorithm>
 #include <math.h>
 
-//Node parameters
-double dmax ; 
-double min_kinect_dist ; 
-double max_kinect_dist ; 
-double octree_resolution ;
-double preview_resolution ;
-int preview_color_samples_in_voxel ; 
-int confidence_threshold ;
-double min_scan_znormal ;
-bool use_frustum ;
-int scene_size ;
-bool logging ;
-bool use_update ;
 
+//Node parameters
+double dmax ; /**< @brief distance threshold for surfel update*/ 
+double min_kinect_dist ; /**< @brief reliable minimum sensor reading distance*/
+double max_kinect_dist ; /**< @brief reliable maximum sensor reading distance*/
+double octree_resolution ; /**< @brief resolution of underlying octree*/
+double preview_resolution ; /**< @brief resolution of output preview map*/
+int preview_color_samples_in_voxel ; /**< @brief number of samples in voxel used for constructing preview point (affects preview efficiency)*/
+int confidence_threshold ; /**< @brief confidence threshold used for establishing reliable surfels*/
+double min_scan_znormal ; /**< @brief acceptable minimum z-component of scan normal*/
+bool use_frustum ; /**< @brief use frustum or no*/
+int scene_size ; /**< @brief preallocated size of scene*/
+bool logging ; /**< @brief logging turned on or off*/
+bool use_update ; /**< @brief use surfel update or no*/
+
+/**
+ * @brief Structure describing sensor pose
+ */
 struct SensorPose {
 	public:
-		Eigen::Quaternionf orientation ;
-		Eigen::Vector4f origin ;
+		Eigen::Quaternionf orientation ; /**< @brief sensor orientation */
+		Eigen::Vector4f origin ; /**< @brief sensor origin */
 } ;
 
 //typedef std::list<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> PointCloudMsgListT ;
-typedef std::list<sensor_msgs::PointCloud2::ConstPtr> PointCloudMsgListT ;
+typedef std::list<sensor_msgs::PointCloud2::ConstPtr> PointCloudMsgListT ; /**< @brief message list of points clouds */
 
-nav_msgs::Path::ConstPtr current_path ;
-PointCloudMsgListT cloudMsgQueue ;
+nav_msgs::Path::ConstPtr current_path ; /**< @brief pointer to the current path message */
+PointCloudMsgListT cloudMsgQueue ; /**< @brief queue of point cloud messages */ 
 
 //Eigen::Matrix4d cameraRgbToCameraLinkTrans ;
-boost::shared_ptr<SurfelMapper> mapper ;
+boost::shared_ptr<SurfelMapper> mapper ; /**< @brief mapper pointer */
 
-ros::Publisher surfel_map_pub ;
-
+ros::Publisher surfel_map_pub ; /**< @brief surfel mapper publisher */ 
 
 //ccny_rgbd uses timestamps for keyframes compatible with rgb camera, but odometry path is time stamped anew (so it can be actually some microseconds later than keyframe
 //simple workaround is to round time stamps to miliseconds.TODO: possibly some patch to ccny_rgbd could be proposed?
 
+/**
+ * @brief rounds the time stamp to miliseconds
+ * 
+ * @param time_stamp time stamp to round
+ * @return rounded time stamp
+ */
 ros::Time roundTimeStamp(const ros::Time &time_stamp)
 {
 	ros::Time rounded_time_stamp = time_stamp ;
@@ -80,6 +89,13 @@ ros::Time roundTimeStamp(const ros::Time &time_stamp)
 	return rounded_time_stamp ;
 }
 
+/**
+ * @brief Retrieves sensor position associated with the given timestamp
+ *
+ * @param time_stamp time stamp to search for
+ * @param sensor_pose output sensor pose
+ * @return true if the time stamp was found, false otherwise
+ */
 bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 {
 	ros::Time time_stamp_rounded = roundTimeStamp(time_stamp) ;	
@@ -129,6 +145,9 @@ bool getSensorPosition(const ros::Time &time_stamp, SensorPose &sensor_pose)
 	}
 }
 
+/**
+ * @brief Process a queue of buffered cloud messages 
+ */
 void processCloudMsgQueue()
 {
 	//Try to associate clouds from the queue with appropriate transforms and process them
@@ -164,12 +183,22 @@ void processCloudMsgQueue()
 		ROS_INFO("processCloudMsgQueue: mapper not initialized") ;
 }
 
+/**
+ * @brief Callback for the incoming path message
+ *
+ * @param msg incoming path message
+ */
 void pathCallback(const nav_msgs::Path::ConstPtr& msg)
 {
 	ROS_DEBUG("pathCallback: [%s]", msg->header.frame_id.c_str());
 	current_path = msg ;
 }
 
+/**
+ * @brief Callback for the incoming keyframe (cloud) message 
+ *
+ * @param msg incoming point cloud message 
+ */
 void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 {
 	ROS_INFO("keyframeCallback: [%s]", msg->header.frame_id.c_str());
@@ -178,6 +207,11 @@ void keyframeCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 	processCloudMsgQueue() ;
 }
 
+/**
+ * @brief Callback for the incoming camera info message 
+ *
+ * @param msg incoming camera info message 
+ */
 void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr &msg)
 {
 	if (!mapper) {
@@ -200,6 +234,12 @@ void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr &msg)
 	}
 }
 
+
+/**
+ * @brief Sends downsampled cloud message 
+ *
+ * @param downsampled_map_pub publisher of the downsampled clouds 
+ */
 void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub) 
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudSceneDownsampled = mapper->getCloudSceneDownsampled() ;
@@ -212,6 +252,21 @@ void sendDownsampledMapMessage(ros::Publisher &downsampled_map_pub)
 	downsampled_map_pub.publish(cloud_msg) ;
 }
 
+/**
+ * @brief Upper limit for the number of markers in a single displayed map fragment 
+ */
+#define MAX_MARKERS 100000 
+
+/**
+ * @brief Sends surfel map message 
+ *
+ * The cloud is sent in the form of the MarkeArray. For efficiency only a part of the map 
+ * is sent so the bounding box must be set appropriately 
+ *
+ * @param map_pub surfel map publisher 
+ * @param min_bb coordinates of the first corner of the bounding box
+ * @param max_bb coordinates of the second corner of the bounding box
+ */
 void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vector3f &max_bb) 
 {
 	pcl::PointCloud<PointCustomSurfel>::Ptr cloudScene = mapper->getCloudScene() ;
@@ -233,7 +288,6 @@ void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vec
 	marker.color.a = 1.0f;
 	marker.pose.orientation.w = 1.0f;
 
-#define MAX_MARKERS 100000
 	Eigen::Vector3f zaxis(0.0f, 0.0f, 1.0f) ;
 	Eigen::Quaternionf orientation ; 
 	size_t nmarkers = std::min<unsigned int>(point_indices.size(), MAX_MARKERS) ;
@@ -274,6 +328,13 @@ void sendMapMessage(ros::Publisher &map_pub, Eigen::Vector3f &min_bb, Eigen::Vec
 	surfel_map_pub.publish(marray) ;
 }
 
+/**
+ * @brief Saves map under the filename specified 
+ *
+ * Only XYZRGB components of surfels are saved.
+ *
+ * @param fileName point cloud file name 
+ */
 void saveMap(const std::string &fileName) 
 {
 	//Copy map to standard RGBXYZ point cloud. Leave only points that are actually valid (octree indices are present) 
@@ -332,6 +393,16 @@ void saveMap(const std::string &fileName)
 	*/	
 }
 
+/**
+ * @brief Callback for the ResetMap service. 
+ *
+ * Removes all surfels from the map.
+ *
+ * @param request service request object
+ * @param response service response object
+ *
+ * @return true if service call is correctly handled
+ */
 bool resetMapCallback(
   surfel_mapper::ResetMap::Request& request,
   surfel_mapper::ResetMap::Response& response)
@@ -346,6 +417,16 @@ bool resetMapCallback(
 	return true ;
 }
 
+/**
+ * @brief Callback for the PublishMap service. 
+ *
+ * Publishes a fragment of the map.
+ *
+ * @param request service request object
+ * @param response service response object
+ *
+ * @return true if service call is correctly handled
+ */
 bool publishMapCallback(
   surfel_mapper::PublishMap::Request& request,
   surfel_mapper::PublishMap::Response& response)
@@ -362,6 +443,16 @@ bool publishMapCallback(
 	return true ;
 }
 
+/**
+ * @brief Callback for the SaveMap service. 
+ *
+ * Save the current map as a RGBXYZ point cloud 
+ *
+ * @param request service request object
+ * @param response service response object
+ *
+ * @return true if service call is correctly handled
+ */
 bool saveMapCallback(
   surfel_mapper::SaveMap::Request& request,
   surfel_mapper::SaveMap::Response& response)
@@ -375,6 +466,14 @@ bool saveMapCallback(
 	return true ;
 }
 
+/**
+ * @brief Main program function 
+ *
+ * @param argc program argument count 
+ * @param argv program argument values 
+ *
+ * @return 0 on correct exit, 1 on failure
+ */
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "surfel_mapper");

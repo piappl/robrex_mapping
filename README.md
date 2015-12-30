@@ -55,13 +55,13 @@ Update opencv from PPA to the version supporting SURF
 	cd ~/catkin_ws
 	catkin_make -DCMAKE_BUILD_TYPE=Release
 
-#### Checkout and build a patched FVOM module
+#### Checkout and build a patched FVOM module ####
 	cd ~/catkin_ws/src
 	git clone git@github.com:piappl/ccny_rgbd_tools.git
 	cd ~/catkin_ws/src/ccny_rgbd_tools
 	rosmake
 
-Robrex mapping - Quick usage
+RobREx mapping - Quick usage
 ----------------------------
 
 #### Provide kinect calibration files ####
@@ -72,11 +72,111 @@ Intrinsic and extrinsic Kinect camera calibration files (rgb.yml, depth.yml, tra
 
 	roslaunch kinect_calib depthreg.launch
 
-#### Start Fast Visual Odometry and Mapping nodes 
+#### Start Fast Visual Odometry and Mapping nodes ####
 
 	roslaunch surfel_mapper visual_odometry.launch 
 
-#### Start Surfel Mapper node
+#### Start Surfel Mapper node ####
 
 	roslaunch surfel_mapper surfel_mapper
 
+surfel_mapper node ROS API 
+----------------------
+
+#### Subscribed Topics ####
+
+/mapper_path (nav_msgs/Path)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sensor positions for subsequent keyframes
+
+/keyframes (sensor_msgs/PointCloud2)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Keyframes to be added to the surfel map
+
+/camera/rgb/camera_info (sensor_msgs/CameraInfo)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Parameters of RGBD camera
+
+#### Published Topics ####
+
+/surfelmap_preview (sensor_msgs/PointCloud2)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Voxel-level preview of the surfel map
+
+/surfelmap (visualization_msgs/MarkerArray)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Part of the surfel map visualized as a marker array
+
+#### Parameters ####
+
+~dmax (double, default:0.05)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;distance threshold for surfel update 
+
+~min_kinect_dist (double, default: 0.8)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reliable minimum sensor reading distance
+
+~max_kinect_dist (double, default: 4.0)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reliable maximum sensor reading distance
+
+~octree_resolution (double, default: 0.2)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;resolution of the underlying octree
+
+~preview_resolution (double, default: 0.2)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;resolution of output preview map
+
+~preview_color_samples_in_voxel (int, default: 3)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;number of samples in voxel used for constructing preview point (affects preview efficiency)
+
+~confidence_threshold (int, default: 5)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;confidence threshold used for establishing reliable surfels
+
+~min_scan_znormal (double, default: 0.2)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;acceptable minimum z-component of scan normal
+
+~use_frustum (bool, default: true)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;use frustum or no
+
+~scene_size (int, default: 30000000)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;preallocated size of scene
+
+~logging (bool, default: true)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;logging turned on or off
+
+~use_update (bool, default: true)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;use surfel update or no
+
+#### Services ####
+
+reset_map (surfel_mapper/PublishMap)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Resets map. Removes all surfels, the map is ready to accomodate a new set of keyframes
+
+save_map (surfel_mapper/SaveMap)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Saves the surfel map in the form of XYZRGB point cloud. The default file 'cloud.pcd' is saved to a standard ROS output directory
+
+publish_map (surfel_mapper/PublishMap)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Publishes a fragment of the map as in a \surfelmap topic. The arguments following service call specify x1, x2, y1, y2, z1, z2 coordinates of the map fragment bounding box
+
+Sample calls to services:
+
+Save the current map to a PCD file:
+
+	rosservice call /save_map	
+
+Send the selected map fragment from the bounding box (-0.2, -0.2, 0.6)-(0.2, 0.2, 1.6):
+
+	rosservice call /publish_map -- -0.2 0.2 -0.2 0.2 0.6 1.6
